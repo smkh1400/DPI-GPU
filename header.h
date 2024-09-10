@@ -118,19 +118,37 @@ typedef struct __attribute__((packed)) {
 } TLSHeader;
 
 typedef struct __attribute__((packed)) {
-    uint8_t version : 3;
-    uint8_t payloadType : 1;
-    uint8_t empty : 1;
-    uint8_t E : 1;
-    uint8_t S : 1;
     uint8_t PN : 1;
+    uint8_t S : 1;
+    uint8_t E : 1;
+    uint8_t empty : 1;
+    uint8_t payloadType : 1;
+    uint8_t version : 3;
     uint8_t messageType;
     uint16_t length;
     uint32_t TEID;
-    //optional headers
+    // optional headers
     // uint16_t seg_num;
-    // uint8_t N-PDU;
+    // uint8_t N_PDU;
     // uint8_t next_ext_hdr_typ;
 } GTPHeader;
+
+typedef struct __attribute__((packed)) {
+    unsigned int cc:4;        // CSRC count (4 bits)
+    unsigned int x:1;         // Extension (1 bit)
+    unsigned int p:1;         // Padding (1 bit)
+    unsigned int version:2;   // Version (2 bits)
+    unsigned int pt:7;        // Payload type (7 bits)
+    unsigned int marker:1;    // Marker bit (1 bit)
+
+    uint16_t seq;             // Sequence number (16 bits)
+
+    uint32_t timestamp;       // Timestamp (32 bits)
+
+    uint32_t ssrc;            // Synchronization source (SSRC) identifier (32 bits)
+
+    // Optional: CSRC list
+    uint32_t csrc[1];         // CSRC list (0 to 15 items, each 32 bits)
+} RTPHeader;
 
 #endif // DPI_HEADERS_H_

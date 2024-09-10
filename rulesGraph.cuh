@@ -15,6 +15,9 @@ enum RuleNames {
         Rule_EthrIpv4Udp,
             Rule_EthrIpv4UdpDns,
             Rule_EthrIpv4UdpRtp,
+            Rule_EthrIpv4UdpGtpIpv4UdpRtp,
+            Rule_EthrVlanIpv4UdpRtp,
+            Rule_EthrVlanIpv4UdpGtpIpv4UdpRtp,
     Rule_Count
 };
 
@@ -53,14 +56,15 @@ public:
 
 class HeaderBuffer {
 public:
-#define HEADER_BUFFER_DATA_MAX_SIZE     80
+#define HEADER_BUFFER_DATA_MAX_SIZE     1526
     uint8_t     headerData[HEADER_BUFFER_DATA_MAX_SIZE];
     uint32_t        headerOffset;
-    Queue<uint16_t>       ruleId;
+    // Queue<uint16_t>       ruleId;
+    uint32_t                ruleId;
     bool            flag;
     size_t      packetLen;
 
-    __device__ HeaderBuffer() : headerOffset(0) , flag(true) {}
+    __device__ HeaderBuffer() : headerOffset(0) , flag(true) , ruleId(Rule_NotRegistered) {}
 
     __device__ uint8_t* getHeaderData();
 
@@ -69,13 +73,14 @@ public:
 
 class PacketBuffer {
 public:
-#define PACKET_BUFFER_DATA_MAX_SIZE     80
+#define PACKET_BUFFER_DATA_MAX_SIZE     2048
     uint8_t         packetData[PACKET_BUFFER_DATA_MAX_SIZE];
-    Queue<uint16_t>        ruleId;
+    // Queue<uint16_t>        ruleId;
+    uint32_t            ruleId;
     size_t                  packetLen;
 
 // public:
-    __device__ PacketBuffer()  {}
+    __device__ PacketBuffer() : ruleId(Rule_NotRegistered) {}
 
     __host__  PacketBuffer(const uint8_t* data, size_t len);
 

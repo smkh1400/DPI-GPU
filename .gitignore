@@ -1,4 +1,4 @@
-./target
-./sections
-./vscode
+target/
+sections/
+vscode/
 result.ncu-rep

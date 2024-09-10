@@ -29,7 +29,7 @@
     #define ntohs(x) x
 #endif
 
-__global__ static void registerRuleGraph(InspectorNode* nodes) {
+__global__ static void registerRuleGraph(InspectorNode* nodes, InspectorNode* root) {
     InspectorNode* ethr_insp = &nodes[0];
     ethr_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
         InspectorFuncOutput out;
@@ -59,7 +59,7 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
 
 
     InspectorNode* ethrIpv4_insp = &nodes[2];
-    ethrIpv4_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+    ethrIpv4_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
         InspectorFuncOutput out;
 
         uint16_t ethrType = *((uint16_t*) cond);
@@ -72,7 +72,7 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
         out.calculatedOffset = sizeof(IPv4Header) + optionSize;
 
         return out;
-    }, Rule_EthrIpv4);
+    });
 
     InspectorNode* ethrIpv4Icmp_insp = &nodes[3];
     ethrIpv4Icmp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
@@ -89,7 +89,7 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
     }, Rule_EthrIPv4ICMP);
 
     InspectorNode* ethrIpv4Udp_insp = &nodes[4];
-    ethrIpv4Udp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+    ethrIpv4Udp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
         InspectorFuncOutput out;
 
         uint8_t protocol = *((uint8_t*) cond);
@@ -101,7 +101,7 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
         out.calculatedOffset = sizeof(UDPHeader);
 
         return out;
-    }, Rule_EthrIpv4Udp);
+    });
 
     InspectorNode* ethrIpv4UdpDns_insp = &nodes[5];
     ethrIpv4UdpDns_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
@@ -161,8 +161,9 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
     ethrIpv4UdpRtp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
         InspectorFuncOutput out;
 
-        uint8_t version = *((uint8_t*) p->getHeaderData());
-        out.checkConditionResult = (version >> 6 == 0b10) && (p->packetLen >= (p->headerOffset + 12));
+        int16_t rtp_len = p->packetLen - p->headerOffset; 
+        RTPHeader* hdr = (RTPHeader*) p->getHeaderData();
+        out.checkConditionResult = (rtp_len >= 12) && (hdr->version == 0b10) && (hdr->pt <= 64 || hdr->pt >=96);
 
         out.calculatedOffset = 0;
 
@@ -171,16 +172,229 @@ __global__ static void registerRuleGraph(InspectorNode* nodes) {
         return out;
     }, Rule_EthrIpv4UdpRtp);
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    
-    ethr_insp->addChild(ethrArp_insp);
+    InspectorNode* ethrVlan_insp = &nodes[9];
+    ethrVlan_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        EthrVlanHeader* hdr = (EthrVlanHeader*) p->getHeaderData();
+        out.checkConditionResult = (hdr->vlanTag.tpid == ntohs(0x8100));
+
+        out.extractedCondition = &(hdr->ethrType);
+
+        out.calculatedOffset = sizeof(EthrVlanHeader);
+
+        return out;
+    });
+
+    InspectorNode* ethrVlanIpv4_insp = &nodes[10];
+    ethrVlanIpv4_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        uint16_t ethrType = *((uint16_t*) cond);
+        out.checkConditionResult = (ethrType == htons(0x0800));
+
+        IPv4Header* hdr = (IPv4Header*) (p->getHeaderData());
+        out.extractedCondition = &(hdr->protocol);
+
+        size_t optionSize = (hdr->ihl*4)-20;
+        out.calculatedOffset = sizeof(IPv4Header) + optionSize;
+
+        return out;
+    });
+
+    InspectorNode* ethrVlanIpv4Udp_insp = &nodes[11];
+    ethrVlanIpv4Udp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        uint8_t protocol = *((uint8_t*) cond);
+        out.checkConditionResult = (protocol == 0x11);
+
+        UDPHeader* hdr = (UDPHeader*) (p->getHeaderData());
+        out.extractedCondition = &(hdr->sport);
+
+        out.calculatedOffset = sizeof(UDPHeader);
+
+        return out;
+    });
+
+    InspectorNode* ethrVlanIpv4UdpRtp_insp = &nodes[12];
+    ethrVlanIpv4UdpRtp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        int16_t rtp_len = p->packetLen - p->headerOffset; 
+        RTPHeader* hdr = (RTPHeader*) p->getHeaderData();
+        out.checkConditionResult = (rtp_len >= 12) && (hdr->version == 0b10) && (hdr->pt <= 64 || hdr->pt >=96);
+
+        out.calculatedOffset = 0;
+
+        out.extractedCondition = NULL;
+
+        return out;
+    }, Rule_EthrVlanIpv4UdpRtp);
+
+    InspectorNode* ethrVlanIpv4UdpGtp_insp = &nodes[13];
+    ethrVlanIpv4UdpGtp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        GTPHeader* hdr = (GTPHeader*) p->getHeaderData();
+
+        out.checkConditionResult = (((hdr->version) == 0b010 || (hdr->version) == 0b001) && (hdr->payloadType == 1) && (hdr->messageType) == 0xFF);
+
+        int normalSize = sizeof(GTPHeader) + (hdr->E) * (1) + (hdr->S) * (2) + (hdr->PN) * (1);
+        out.calculatedOffset = (hdr->E) * (*((uint8_t*) (p->getHeaderData() + normalSize)) * 4 + 1) + normalSize; // 1 : 'extension header length' size 
+
+        out.extractedCondition = NULL;
+
+        return out;
+    });
+
+    InspectorNode* ethrVlanIpv4UdpGtpIpv4_insp = &nodes[14];
+    ethrVlanIpv4UdpGtpIpv4_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        IPv4Header* hdr = (IPv4Header*) p->getHeaderData();
+        uint8_t version = hdr->version;
+
+        out.checkConditionResult = version == 4;
+
+        out.extractedCondition = &(hdr->protocol);
+
+        out.calculatedOffset = hdr->ihl*4;
+
+        return out;
+    });
+
+
+    InspectorNode* ethrVlanIpv4UdpGtpIpv4Udp_insp = &nodes[15];
+    ethrVlanIpv4UdpGtpIpv4Udp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        uint8_t protocol = *((uint8_t*) cond);
+        out.checkConditionResult = (protocol == 0x11);
+
+        UDPHeader* hdr = (UDPHeader*) (p->getHeaderData());
+        out.extractedCondition = &(hdr->sport);
+
+        out.calculatedOffset = sizeof(UDPHeader);
+
+        return out;
+    });
+
+    InspectorNode* ethrVlanIpv4UdpGtpIpv4UdpRtp_insp = &nodes[16];
+    ethrVlanIpv4UdpGtpIpv4UdpRtp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        int16_t rtp_len = p->packetLen - p->headerOffset; 
+        RTPHeader* hdr = (RTPHeader*) p->getHeaderData();
+        out.checkConditionResult = (rtp_len >= 12) && (hdr->version == 0b10) && (hdr->pt <= 64 || hdr->pt >=96);
+
+        out.calculatedOffset = 0;
+
+        out.extractedCondition = NULL;
+
+        return out;
+    }, Rule_EthrVlanIpv4UdpGtpIpv4UdpRtp);
+
+//////////////////////////////////////////////////////////////
+
+    InspectorNode* ethrIpv4UdpGtp_insp = &nodes[17];
+    ethrIpv4UdpGtp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        GTPHeader* hdr = (GTPHeader*) p->getHeaderData();
+
+        uint8_t version = hdr->version;
+        uint8_t msgType = hdr->messageType;
+        out.checkConditionResult = (((version) == 0b010 || (version) == 0b001) && (msgType) == 0xFF);
+
+        printf("%d\n", out.checkConditionResult);
+
+        int normalSize = sizeof(GTPHeader) + (hdr->E) * (1) + (hdr->S) * (2) + (hdr->PN) * (1);
+        out.calculatedOffset = (hdr->E) * (*((uint8_t*) (p->getHeaderData() + normalSize)) * 4 + 1) + normalSize; // 1 : 'extension header length' size 
+
+        out.extractedCondition = NULL;
+
+        return out;
+    });
+
+
+    InspectorNode* ethrIpv4UdpGtpIpv4_insp = &nodes[18];
+    ethrIpv4UdpGtpIpv4_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        IPv4Header* hdr = (IPv4Header*) p->getHeaderData();
+        uint8_t version = hdr->version;
+
+
+        out.checkConditionResult = version;
+
+        out.extractedCondition = &(hdr->protocol);
+
+        out.calculatedOffset = hdr->ihl*4;
+
+        return out;
+    });
+
+    InspectorNode* ethrIpv4UdpGtpIpv4Udp_insp = &nodes[19];
+    ethrIpv4UdpGtpIpv4Udp_insp->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        uint8_t protocol = *((uint8_t*) cond);
+        out.checkConditionResult = (protocol == 0x11);
+
+        UDPHeader* hdr = (UDPHeader*) (p->getHeaderData());
+        out.extractedCondition = &(hdr->sport);
+
+        out.calculatedOffset = sizeof(UDPHeader);
+
+        return out;
+    });
+
+    InspectorNode* ethrIpv4UdpGtpIpv4UdpRtp_insp = &nodes[20];
+    ethrIpv4UdpGtpIpv4UdpRtp_insp->setRule((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+
+        int16_t rtp_len = p->packetLen - p->headerOffset; 
+        RTPHeader* hdr = (RTPHeader*) p->getHeaderData();
+        out.checkConditionResult = (rtp_len >= 12) && (hdr->version == 0b10) && (hdr->pt <= 64 || hdr->pt >=96);
+
+        out.calculatedOffset = 0;
+
+        out.extractedCondition = NULL;
+
+        return out;
+    }, Rule_EthrIpv4UdpGtpIpv4UdpRtp);
+
+
+    root->setInspectorFunction((Inspector_t) [](HeaderBuffer* p, void* cond) -> InspectorFuncOutput {
+        InspectorFuncOutput out;
+        out.checkConditionResult = true;
+        out.extractedCondition = NULL;
+        out.calculatedOffset = 0;
+        return out;
+    });
+
+    root->addChild(ethr_insp);
+    root->addChild(ethrVlan_insp);
+
+    ethrVlan_insp->addChild(ethrVlanIpv4_insp);
+    ethrVlanIpv4_insp->addChild(ethrVlanIpv4Udp_insp);
+    ethrVlanIpv4Udp_insp->addChild(ethrVlanIpv4UdpRtp_insp);
+    ethrVlanIpv4Udp_insp->addChild(ethrVlanIpv4UdpGtp_insp);
+    ethrVlanIpv4UdpGtp_insp->addChild(ethrVlanIpv4UdpGtpIpv4_insp);
+    ethrVlanIpv4UdpGtpIpv4_insp->addChild(ethrVlanIpv4UdpGtpIpv4Udp_insp);
+    ethrVlanIpv4UdpGtpIpv4Udp_insp->addChild(ethrVlanIpv4UdpGtpIpv4UdpRtp_insp);
+
     ethr_insp->addChild(ethrIpv4_insp);
-        ethrIpv4_insp->addChild(ethrIpv4Icmp_insp);
-        ethrIpv4_insp->addChild(ethrIpv4Udp_insp);
-            ethrIpv4Udp_insp->addChild(ethrIpv4UdpDns_insp);
-            // ethrIpv4Udp_insp->addChild(ethrIpv4UdpRtp_insp);
-        ethrIpv4_insp->addChild(ethrIpv4Tcp_insp);
-            ethrIpv4Tcp_insp->addChild(ethrIpv4TcpHttp_insp);
+    ethrIpv4_insp->addChild(ethrIpv4Udp_insp);
+    ethrIpv4Udp_insp->addChild(ethrIpv4UdpDns_insp);
+    ethrIpv4Udp_insp->addChild(ethrIpv4UdpRtp_insp);
+    ethrIpv4Udp_insp->addChild(ethrIpv4UdpGtp_insp);
+    ethrIpv4UdpGtp_insp->addChild(ethrIpv4UdpGtpIpv4_insp);
+    ethrIpv4UdpGtpIpv4_insp->addChild(ethrIpv4UdpGtpIpv4Udp_insp);
+    ethrIpv4UdpGtpIpv4Udp_insp->addChild(ethrIpv4UdpGtpIpv4UdpRtp_insp);
 }
 
 __global__ void performProcess(PacketBuffer* packets, size_t packetCount, InspectorNode* rootNode) {
@@ -193,15 +407,14 @@ __global__ void performProcess(PacketBuffer* packets, size_t packetCount, Inspec
         
         h.packetLen = packets[idx].packetLen;
 
-        rootNode[0].processNode(&h, NULL);
-        packets[idx].ruleId.clone(h.ruleId);
-    }
-        
+        rootNode->processNode(&h, NULL);
+        packets[idx].ruleId = h.ruleId;
+    }       
 }
 
 
 int main() {
-    size_t packetCount = 200000000;
+    size_t packetCount = 20000000;
     unsigned long long packetSize = 0L;
     PacketBuffer* packets = (PacketBuffer*) calloc(packetCount, sizeof(PacketBuffer));
     if(packets == NULL) 
@@ -214,8 +427,7 @@ int main() {
         const u_char *packet;
         struct pcap_pkthdr* header = (struct pcap_pkthdr*) malloc(sizeof(*header));
 
-        // handle = pcap_open_offline("/home/hamed/hpc_event_2/problem_big/cbig.pcap", errBuf);
-        handle = pcap_open_offline("../3.pcap", errBuf);
+        handle = pcap_open_offline("../pcap/gtp2.pcap", errBuf);
         if(handle == NULL) {
             printf("Unable To Open Pcap File\n");
             return 1;
@@ -225,7 +437,6 @@ int main() {
         while((result = (pcap_next_ex(handle, &header, &packet))) >= 0) {
             PacketBuffer p(packet, header->caplen);
             packets[counter++] = p;
-
             packetCount++;
             packetSize += header->caplen;
             if ((counter*sizeof(PacketBuffer)) >= (24696061952L)) break;        // GPU RAM Limit
@@ -235,6 +446,11 @@ int main() {
     }
 
     packetCount = counter;
+
+    size_t stackSize;
+    CHECK_CUDA_ERROR(cudaDeviceGetLimit(&stackSize, cudaLimitStackSize));
+    CHECK_CUDA_ERROR(cudaDeviceSetLimit(cudaLimitStackSize, 1024*2));
+    
 
     float duration = 0;
     cudaEvent_t start, stop;
@@ -260,16 +476,18 @@ int main() {
 
 
     InspectorNode* d_nodes;
-    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_nodes, 9*sizeof(InspectorNode)));
+    InspectorNode* d_root;
+    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_nodes, 30*sizeof(InspectorNode)));
+    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_root, sizeof(InspectorNode)));
 
-    registerRuleGraph<<<1,1>>>(d_nodes);
+    registerRuleGraph<<<1,1>>>(d_nodes, d_root);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     printf("RuleGraph Was Registered On Device\n");
 
     int threadPerBlock = 512;
 
     CHECK_CUDA_ERROR(cudaEventRecord(start));
-    performProcess<<<(packetCount+threadPerBlock-1)/threadPerBlock,threadPerBlock>>>(d_packets, packetCount, d_nodes);
+    performProcess<<<(packetCount+threadPerBlock-1)/threadPerBlock,threadPerBlock>>>(d_packets, packetCount, d_root);
     CHECK_CUDA_ERROR(cudaEventRecord(stop));
 
     CHECK_CUDA_ERROR(cudaEventSynchronize(stop));
@@ -283,14 +501,14 @@ int main() {
 
     CHECK_CUDA_ERROR(cudaMemcpy((void*) packets, (void*) d_packets, packetCount*sizeof(PacketBuffer), cudaMemcpyDeviceToHost));
 
+
     int ruleCount[Rule_Count] = {0};
-    for(size_t i = 0 ; i < packetCount ; i++)
-        for(int j = 0 ; j < QUEUE_BUFFER_MAX_LEN ; j++)
-            ruleCount[packets[i].ruleId.array[j]]++;
+    for(size_t i = 0 ; i < packetCount ; i++) {  
+        ruleCount[packets[i].ruleId]++;
+    }
 
     for(size_t i = 0 ; i < Rule_Count ; i++)
         printf("#%s : %d\n", getRuleName(i), ruleCount[i]);
     
-
     return 0;
 }

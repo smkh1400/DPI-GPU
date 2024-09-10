@@ -12,6 +12,9 @@ const char* getRuleName(uint32_t ruleId) {
         case Rule_EthrIpv4Tcp:       return "Ethernet-IPv4-TCP";
         case Rule_EthrIpv4Udp:       return "Ethernet-IPv4-UDP";
         case Rule_EthrIpv4UdpRtp:    return "Ethernet-IPv4-UDP-RTP";
+        case Rule_EthrIpv4UdpGtpIpv4UdpRtp:    return "Ethernet-IPv4-UDP-GTP-IPv4-UDP-RTP";
+        case Rule_EthrVlanIpv4UdpRtp:    return "Ethernet-Vlan_IPv4-UDP-RTP";
+        case Rule_EthrVlanIpv4UdpGtpIpv4UdpRtp:    return "Ethernet-Vlan_IPv4-UDP-GTP-IPv4-UDP-RTP";
         case Rule_EthrIpv4UdpDns:    return "Ethernet-IPv4-UDP-DNS";
         case Rule_EthrIpv4TcpHttp:   return "Ethernet-IPv4-TCP-HTTP";
         default:                     return "N/A";
@@ -22,6 +25,7 @@ __host__ PacketBuffer::PacketBuffer(const uint8_t* data, size_t len) {
     memset(packetData, 0 , PACKET_BUFFER_DATA_MAX_SIZE);
     memcpy(packetData, data, (len < PACKET_BUFFER_DATA_MAX_SIZE) ? len : PACKET_BUFFER_DATA_MAX_SIZE);
     packetLen = len;
+    ruleId = Rule_NotRegistered;
 }
 __device__ uint8_t* HeaderBuffer::getHeaderData() {
     return (uint8_t*) (headerData+headerOffset);
@@ -40,7 +44,8 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond) {
     InspectorFuncOutput out = inspectorFunction(header, cond);
 
     header->flag &= out.checkConditionResult;
-    header->ruleId.push(header->flag ? ruleId : Rule_NotRegistered);
+    // header->ruleId.push(header->flag ? ruleId : Rule_NotRegistered);
+    header->ruleId = header->ruleId!=Rule_NotRegistered ? header->ruleId : header->flag ? ruleId : Rule_NotRegistered;
     header->headerOffset += out.calculatedOffset;
 
     bool pFlag = header->flag;
