@@ -98,7 +98,7 @@ struct InspectorFuncOutput {
     int32_t     calculatedOffset;
 };
 
-typedef InspectorFuncOutput (*Inspector_t) (HeaderBuffer*, void*);
+typedef void (*Inspector_t) (HeaderBuffer*, void*, InspectorFuncOutput*);
 
 class InspectorNode {
 private:
@@ -119,7 +119,7 @@ public:
 
     __device__ bool addChild(InspectorNode* child);
 
-    __device__ void processNode(HeaderBuffer* packet, void* cond);
+    __device__ void processNode(HeaderBuffer* packet, void* cond, InspectorFuncOutput* out);
 
     __device__ void setInspectorFunction(Inspector_t inspectorFun);
 

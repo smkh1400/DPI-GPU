@@ -47,22 +47,24 @@ __device__ bool InspectorNode::addChild(InspectorNode* child) {
     return true;
 }
 
-__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond) {
-    InspectorFuncOutput out = inspectorFunction(header, cond);
+__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, InspectorFuncOutput* out) {
+    // InspectorFuncOutput out = inspectorFunction(header, cond);
+    inspectorFunction(header, cond, out);
 
-    header->flag &= out.checkConditionResult;
+    header->flag &= out->checkConditionResult;
     header->ruleId = header->ruleId!=Rule_NotRegistered ? header->ruleId : header->flag ? ruleId : Rule_NotRegistered;
-    size_t newOffset = header->headerOffset + out.calculatedOffset;
+    size_t newOffset = header->headerOffset + out->calculatedOffset;
     header->headerOffset = (header->packetLen >= newOffset && newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
-
 
     bool pFlag = header->flag;
     int32_t pOffset = header->headerOffset;
+    void* pExtractedPtr = out->extractedCondition;
 
     for(size_t i = 0 ; i < childrenCount ; i++) {
-        childrenNodes[i]->processNode(header, (void*) out.extractedCondition);
+        childrenNodes[i]->processNode(header, (void*) out->extractedCondition, out);
         header->flag = pFlag;
         header->headerOffset = pOffset;
+        out->extractedCondition = pExtractedPtr;
     }
 }
 
