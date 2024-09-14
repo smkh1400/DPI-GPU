@@ -15,9 +15,13 @@ enum RuleNames {
         Rule_EthrIpv4Udp,
             Rule_EthrIpv4UdpDns,
             Rule_EthrIpv4UdpRtp,
+            Rule_EthrIpv4UdpSip,
             Rule_EthrIpv4UdpGtpIpv4UdpRtp,
+            Rule_EthrIpv4UdpGtpIpv4UdpSip,
             Rule_EthrVlanIpv4UdpRtp,
+            Rule_EthrVlanIpv4UdpSip,
             Rule_EthrVlanIpv4UdpGtpIpv4UdpRtp,
+            Rule_EthrVlanIpv4UdpGtpIpv4UdpSip,
     Rule_Count
 };
 
@@ -56,7 +60,7 @@ public:
 
 class HeaderBuffer {
 public:
-#define HEADER_BUFFER_DATA_MAX_SIZE     1526
+#define HEADER_BUFFER_DATA_MAX_SIZE     1024
     uint8_t     headerData[HEADER_BUFFER_DATA_MAX_SIZE];
     uint32_t        headerOffset;
     // Queue<uint16_t>       ruleId;
@@ -73,7 +77,7 @@ public:
 
 class PacketBuffer {
 public:
-#define PACKET_BUFFER_DATA_MAX_SIZE     2048
+#define PACKET_BUFFER_DATA_MAX_SIZE     1600
     uint8_t         packetData[PACKET_BUFFER_DATA_MAX_SIZE];
     // Queue<uint16_t>        ruleId;
     uint32_t            ruleId;

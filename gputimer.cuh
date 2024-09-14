@@ -2,6 +2,16 @@
 #define GPUTIMER_CUH
 
 #include <cuda_runtime.h>
+#include <stdio.h>
+
+#define CHECK_CUDA_ERROR(fun)                                                   \
+{                                                                               \
+    cudaError_t err = fun;                                                      \
+    if(err != cudaSuccess) {                                                    \
+        printf("CUDA at %s:%d: %s\n", __FUNCTION__, __LINE__ , cudaGetErrorString(err));           \
+        return -1;                                                               \
+    }                                                                           \
+}
 
 struct GPUTimer {
     cudaEvent_t startEvent;
@@ -27,9 +37,9 @@ struct GPUTimer {
 
     float elapsed() {
         float elapsed;
-        cudaEventSynchronize(endEvent);
-        cudaEventElapsedTime(&elapsed, startEvent, endEvent);
-        return elapsed / 1000;
+        CHECK_CUDA_ERROR(cudaEventSynchronize(endEvent));
+        CHECK_CUDA_ERROR(cudaEventElapsedTime(&elapsed, startEvent, endEvent));
+        return elapsed;
     }
 
 };
