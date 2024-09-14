@@ -2,86 +2,56 @@ Pcap File ../pcap/sample_v2.pcap Opened
 RuleGraph Was Registered On Device
 >> Chunk 1 Started
 196608 Packets Was Read From Pcap File
->> 196608 Packets (0.295898 GB) Transfered From Host To Device 
-	| Duration : 13.408288 ms
-	| Bandwidth : 176.546588 Gb/s
 >> RuleGraph Was Processed For 256 Threads Per Block 
 >> 196608 Packets (0.192 GB) Processed On GPU 
-	| Duration : 1.503328 ms
-	| Bandwidth : 1021.171883 Gb/s
->> 196608 Packets (0.295898 GB) Transfered From Device to Host
-	| Duration : 12.088704 ms
-	| Bandwidth : 195.818136 Gb/s
+	| Duration : 20.349953 ms
+	| Bandwidth : 75.437829 Gb/s
 ---------------------------------------------------------------
 
 >> Chunk 2 Started
 196608 Packets Was Read From Pcap File
->> 196608 Packets (0.295898 GB) Transfered From Host To Device 
-	| Duration : 13.396960 ms
-	| Bandwidth : 176.695866 Gb/s
 >> RuleGraph Was Processed For 256 Threads Per Block 
 >> 196608 Packets (0.192 GB) Processed On GPU 
-	| Duration : 1.540928 ms
-	| Bandwidth : 996.254364 Gb/s
->> 196608 Packets (0.295898 GB) Transfered From Device to Host
-	| Duration : 12.077312 ms
-	| Bandwidth : 196.002836 Gb/s
+	| Duration : 20.645727 ms
+	| Bandwidth : 74.357093 Gb/s
 ---------------------------------------------------------------
 
 >> Chunk 3 Started
 196608 Packets Was Read From Pcap File
->> 196608 Packets (0.295898 GB) Transfered From Host To Device 
-	| Duration : 13.231904 ms
-	| Bandwidth : 178.899990 Gb/s
 >> RuleGraph Was Processed For 256 Threads Per Block 
 >> 196608 Packets (0.192 GB) Processed On GPU 
-	| Duration : 1.528160 ms
-	| Bandwidth : 1004.578234 Gb/s
->> 196608 Packets (0.295898 GB) Transfered From Device to Host
-	| Duration : 12.085344 ms
-	| Bandwidth : 195.872574 Gb/s
+	| Duration : 20.448256 ms
+	| Bandwidth : 75.075169 Gb/s
 ---------------------------------------------------------------
 
 >> Chunk 4 Started
 196608 Packets Was Read From Pcap File
->> 196608 Packets (0.295898 GB) Transfered From Host To Device 
-	| Duration : 13.335232 ms
-	| Bandwidth : 177.513787 Gb/s
 >> RuleGraph Was Processed For 256 Threads Per Block 
 >> 196608 Packets (0.192 GB) Processed On GPU 
-	| Duration : 1.513088 ms
-	| Bandwidth : 1014.584917 Gb/s
->> 196608 Packets (0.295898 GB) Transfered From Device to Host
-	| Duration : 12.092960 ms
-	| Bandwidth : 195.749215 Gb/s
+	| Duration : 20.386784 ms
+	| Bandwidth : 75.301542 Gb/s
 ---------------------------------------------------------------
 
 >> Chunk 5 Started
 95891 Packets Was Read From Pcap File
->> 95891 Packets (0.144318 GB) Transfered From Host To Device 
-	| Duration : 6.517312 ms
-	| Bandwidth : 177.149857 Gb/s
 >> RuleGraph Was Processed For 256 Threads Per Block 
 >> 95891 Packets (0.094 GB) Processed On GPU 
-	| Duration : 0.729408 ms
-	| Bandwidth : 1026.499424 Gb/s
->> 95891 Packets (0.144318 GB) Transfered From Device to Host
-	| Duration : 5.887456 ms
-	| Bandwidth : 196.101832 Gb/s
+	| Duration : 10.324928 ms
+	| Bandwidth : 72.517396 Gb/s
 	| Total Packets: 882323
 	| N/A : 155719
 	| Ethernet-IPv4-UDP-DNS : 1459
 	| Ethernet-IPv4-UDP-RTP : 724927
 	| Ethernet-IPv4-UDP-SIP : 218
 >> Host To Device:
-	| Duration: 59.889696 ms
-	| Bandwidth: 115.034177 Gb/s
+	| Duration: 0.000000 ms
+	| Bandwidth: inf Gb/s
 >> Kernel:
-	| Duration: 6.814912 ms
-	| Bandwidth: 1010.924566 Gb/s
+	| Duration: 92.155647 ms
+	| Bandwidth: 74.757892 Gb/s
 >> Device To Host:
-	| Duration: 54.231777 ms
-	| Bandwidth: 127.035518 Gb/s
+	| Duration: 0.000000 ms
+	| Bandwidth: inf Gb/s
 
 **********************************************************************************************
 
