@@ -587,7 +587,7 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
     if(verbose) printf("Pcap File %s Opened\n", pcapFilePath);
 
     PacketBuffer* d_packets;
-    // CHECK_CUDA_ERROR(cudaMalloc((void**) &d_packets, PACKET_BUFFER_CHUNK_SIZE*sizeof(PacketBuffer)));
+    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_packets, PACKET_BUFFER_CHUNK_SIZE*sizeof(PacketBuffer)));
 
     float duration;
     GPUTimer timer;
@@ -641,22 +641,22 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
         if(verbose) printf("%ld Packets Was Read From Pcap File\n", counter);
         
-        // HDPacketSize = counter*sizeof(PacketBuffer);
-        // timer.start();
-        // CHECK_CUDA_ERROR(cudaMemcpy((void*) d_packets, (void*) h_packets, HDPacketSize, cudaMemcpyHostToDevice));
-        // timer.end();
-        // duration = timer.elapsed();
-        // totalHDDuration += duration;
-        // totalHDPacketSize += HDPacketSize;
+        HDPacketSize = counter*sizeof(PacketBuffer);
+        timer.start();
+        CHECK_CUDA_ERROR(cudaMemcpy((void*) d_packets, (void*) h_packets, HDPacketSize, cudaMemcpyHostToDevice));
+        timer.end();
+        duration = timer.elapsed();
+        totalHDDuration += duration;
+        totalHDPacketSize += HDPacketSize;
 
-        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Host To Device \n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
-        // if(verbose) printf("\t| Duration : %lf ms\n", duration);
-        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
+        if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Host To Device \n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
+        if(verbose) printf("\t| Duration : %lf ms\n", duration);
+        if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
         
         int threadPerBlock = 256;
         
         timer.start();
-        performProcess<<<(counter+threadPerBlock-1)/threadPerBlock,threadPerBlock>>>(h_packets, counter, d_root);
+        performProcess<<<(counter+threadPerBlock-1)/threadPerBlock,threadPerBlock>>>(d_packets, counter, d_root);
         timer.end();
         duration = timer.elapsed();
         totalKernelDuration += duration;
@@ -666,17 +666,17 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if(verbose) printf("\t| Duration : %lf ms\n", duration);
         if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (sizeof(HeaderBuffer)*counter*1000.0*8.0)/(_GB_*duration));
 
-        // DHPacketSize = counter*sizeof(PacketBuffer);
-        // timer.start();
-        // CHECK_CUDA_ERROR(cudaMemcpy((void*) h_packets, (void*) d_packets, DHPacketSize, cudaMemcpyDeviceToHost));
-        // timer.end();
-        // duration = timer.elapsed();
-        // totalDHDuration += duration;
-        // totalDHPacketSize += DHPacketSize;
+        DHPacketSize = counter*sizeof(PacketBuffer);
+        timer.start();
+        CHECK_CUDA_ERROR(cudaMemcpy((void*) h_packets, (void*) d_packets, DHPacketSize, cudaMemcpyDeviceToHost));
+        timer.end();
+        duration = timer.elapsed();
+        totalDHDuration += duration;
+        totalDHPacketSize += DHPacketSize;
 
-        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Device to Host\n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
-        // if(verbose) printf("\t| Duration : %lf ms\n", duration);
-        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
+        if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Device to Host\n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
+        if(verbose) printf("\t| Duration : %lf ms\n", duration);
+        if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
 
         for(size_t i = 0 ; i < counter ; i++) {  
             ruleCount[h_packets[i].ruleId]++;
