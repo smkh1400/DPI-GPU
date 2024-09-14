@@ -497,11 +497,13 @@ __global__ void performProcess(PacketBuffer* packets, size_t packetCount, Inspec
 
 #define MIN(x, y)           ((x) < (y) ? (x) : (y))
 
-#define MAX_PACKET_IN_RAM            ((long long) ((long long) MIN(HOST_RAM_SIZE, DEVICE_RAM_SIZE)) / (sizeof(PacketBuffer)))
+#define PACKETS_PER_THREAD                   (64)
+#define MAX_PACKET_IN_RAM                   ((long long) ((long long) MIN(HOST_RAM_SIZE, DEVICE_RAM_SIZE)) / (sizeof(PacketBuffer)))
 #define DEVICE_TOTAL_THREADS                (196608)
 
-#define PACKET_BUFFER_CHUNK_SIZE         (MIN(DEVICE_TOTAL_THREADS, MAX_PACKET_IN_RAM))
+#define PACKET_BUFFER_CHUNK_SIZE            (MIN(DEVICE_TOTAL_THREADS*PACKETS_PER_THREAD, MAX_PACKET_IN_RAM))
 // #define PACKET_BUFFER_CHUNK_SIZE         (196608)
+
 
 
 static int readPacketChunk(PacketBuffer* h_packets, pcap_t* handle, size_t* counter, size_t* packetSize) {
@@ -511,7 +513,7 @@ static int readPacketChunk(PacketBuffer* h_packets, pcap_t* handle, size_t* coun
     const u_char *packet;
     struct pcap_pkthdr *header;
 
-    while((*counter < PACKET_BUFFER_CHUNK_SIZE)) {
+    while((*counter < PACKET_BUFFER_CHUNK_SIZE / 2)) {
 
         if(!((result = (pcap_next_ex(handle, &header, &packet))) >= 0)) break;
 
@@ -575,19 +577,15 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
 
     // PacketBuffer* h_packets = (PacketBuffer*) calloc(PACKET_BUFFER_CHUNK_SIZE, sizeof(PacketBuffer));
-    PacketBuffer* h_packets;
-    // cudaHostAlloc((void**) &h_packets, PACKET_BUFFER_CHUNK_SIZE * sizeof(PacketBuffer), cudaHostAllocDefault);
-    cudaMallocManaged((void**) &h_packets, PACKET_BUFFER_CHUNK_SIZE * sizeof(PacketBuffer));
+    PacketBuffer* h_packets_ping;
+    PacketBuffer* h_packets_pong;
 
-    int device;
+    cudaHostAlloc((void**) &h_packets_ping, (PACKET_BUFFER_CHUNK_SIZE / 2) * sizeof(PacketBuffer), cudaHostAllocDefault);
+    cudaHostAlloc((void**) &h_packets_pong, (PACKET_BUFFER_CHUNK_SIZE / 2) * sizeof(PacketBuffer), cudaHostAllocDefault);
 
-    cudaGetDevice(&device);
-
-    cudaMemAdvise((void*) h_packets, PACKET_BUFFER_CHUNK_SIZE * sizeof(PacketBuffer), cudaMemAdviseSetPreferredLocation, device);
-    cudaMemAdvise((void*) h_packets, PACKET_BUFFER_CHUNK_SIZE * sizeof(PacketBuffer), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
     
 
-    if(h_packets == NULL)   
+    if(h_packets_ping == NULL || h_packets_pong == NULL)   
     {
         printf("Unable to allocate Packets\n");
         return -1;
@@ -595,11 +593,13 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
     if(verbose) printf("Pcap File %s Opened\n", pcapFilePath);
 
-    // PacketBuffer* d_packets;
-    // CHECK_CUDA_ERROR(cudaMalloc((void**) &d_packets, PACKET_BUFFER_CHUNK_SIZE*sizeof(PacketBuffer)));
+    PacketBuffer* d_packets_ping;
+    PacketBuffer* d_packets_pong;
 
-    float duration;
-    GPUTimer timer;
+    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_packets_ping, (PACKET_BUFFER_CHUNK_SIZE / 2) * sizeof(PacketBuffer)));
+    CHECK_CUDA_ERROR(cudaMalloc((void**) &d_packets_pong, (PACKET_BUFFER_CHUNK_SIZE / 2) * sizeof(PacketBuffer)));
+
+
 
     InspectorNode* d_root;
     InspectorNode* d_nodes;
@@ -617,10 +617,13 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     if(verbose) printf("RuleGraph Was Registered On Device\n");
 
-    size_t counter;
+    size_t counterPing;
+    size_t counterPong;
     size_t packetSize;
-    size_t HDPacketSize;
-    size_t DHPacketSize;
+    size_t HDPacketSizePing;
+    size_t HDPacketSizePong;
+    size_t DHPacketSizePing;
+    size_t DHPacketSizePong;
     size_t chunkCounter = 0;
 
     size_t totalCounter = 0;
@@ -635,61 +638,108 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
     int ruleCount[Rule_Count] = {0};
     int result;
 
+    cudaStream_t pingStream;
+    cudaStream_t pongStream;
+
+    cudaStreamCreate(&pingStream);
+    cudaStreamCreate(&pongStream);
+
+    // float durationPing, durationPong;
+    // GPUTimer timerPing(pingStream);
+    // GPUTimer timerPong(pongStream);
+
     while (1) {
         if(verbose) printf(">> Chunk %d Started\n", chunkCounter+1);
+        //ping
 
-        int result = readPacketChunk(h_packets, handle, &counter, &packetSize);
+        int result = readPacketChunk(h_packets_ping, handle, &counterPing, &packetSize);
         if(result < 0 && result != -2 && verbose) {
             printf("Something went wrong in reading packets(%d)\n", result);
             printf("The Error was : %s\n", pcap_geterr(handle));
-            printf("The counter was %d\n", counter);
+            printf("The counter was %d\n", counterPing);
         }
 
-        totalCounter += counter;
+        totalCounter += counterPing;
         totalPacketSize += packetSize;
 
-        if(verbose) printf("%ld Packets Was Read From Pcap File\n", counter);
-        
-        // HDPacketSize = counter*sizeof(PacketBuffer);
-        // timer.start();
-        // CHECK_CUDA_ERROR(cudaMemcpy((void*) d_packets, (void*) h_packets, HDPacketSize, cudaMemcpyHostToDevice));
-        // timer.end();
-        // duration = timer.elapsed();
-        // totalHDDuration += duration;
-        // totalHDPacketSize += HDPacketSize;
+        //pong
+        result = readPacketChunk(h_packets_pong, handle, &counterPong, &packetSize);
+        if(result < 0 && result != -2 && verbose) {
+            printf("Something went wrong in reading packets(%d)\n", result);
+            printf("The Error was : %s\n", pcap_geterr(handle));
+            printf("The counter was %d\n", counterPong);
+        }
 
-        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Host To Device \n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
-        // if(verbose) printf("\t| Duration : %lf ms\n", duration);
-        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
+        totalCounter += counterPong;
+        totalPacketSize += packetSize;
+
+        if(verbose) printf("%ld Packets Was Read From Pcap File\n", counterPing + counterPong);
+        
+        HDPacketSizePing = counterPing*sizeof(PacketBuffer);
+        HDPacketSizePong = counterPong*sizeof(PacketBuffer);
+
+        // timerPing.start();
+        CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) d_packets_ping, (void*) h_packets_ping, HDPacketSizePing, cudaMemcpyHostToDevice, pingStream));
+        // timerPing.end();
+        // durationPing = timerPing.elapsed();
+        // totalHDDuration += durationPing;
+
+
+        // timerPong.start();
+        CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) d_packets_pong, (void*) h_packets_pong, HDPacketSizePong, cudaMemcpyHostToDevice, pongStream));
+        // timerPong.end();
+        // durationPong = timerPong.elapsed();
+        // totalHDDuration += durationPong;
+
+
+        // totalHDPacketSize += HDPacketSizePing + HDPacketSizePong;
+
+        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Host To Device \n", counterPing + counterPong, ((counterPing + counterPong)*sizeof(PacketBuffer))/(_GB_));
+        // if(verbose) printf("\t| DurationPing : %lf ms\n", durationPing);
+        // if(verbose) printf("\t| DurationPong : %lf ms\n", durationPong);
+        // if(verbose) printf("\t| BandwidthPing : %lf Gb/s\n", ((counterPing)*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*durationPing));
+        // if(verbose) printf("\t| BandwidthPong : %lf Gb/s\n", ((counterPong)*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*durationPong));
+
         
         int threadPerBlock = 256;
         
-        timer.start();
-        performProcess<<<(counter+threadPerBlock-1)/threadPerBlock,threadPerBlock>>>(h_packets, counter, d_root);
-        timer.end();
-        duration = timer.elapsed();
-        totalKernelDuration += duration;
-
-        if(verbose) printf(">> RuleGraph Was Processed For %d Threads Per Block \n", threadPerBlock);
-        if(verbose) printf(">> %ld Packets (%.3lf GB) Processed On GPU \n", counter, (sizeof(HeaderBuffer)*counter*1.0)/(_GB_));
-        if(verbose) printf("\t| Duration : %lf ms\n", duration);
-        if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (sizeof(HeaderBuffer)*counter*1000.0*8.0)/(_GB_*duration));
-
-        // DHPacketSize = counter*sizeof(PacketBuffer);
         // timer.start();
-        // CHECK_CUDA_ERROR(cudaMemcpy((void*) h_packets, (void*) d_packets, DHPacketSize, cudaMemcpyDeviceToHost));
+        performProcess<<<((counterPing+threadPerBlock-1)/threadPerBlock), threadPerBlock, 0, pingStream>>>(d_packets_ping, counterPing, d_root);
+        performProcess<<<((counterPong+threadPerBlock-1)/threadPerBlock), threadPerBlock, 0, pongStream>>>(d_packets_pong, counterPong, d_root);
+        // timer.end();
+        // duration = timer.elapsed();
+        // totalKernelDuration += duration;
+
+        // if(verbose) printf(">> RuleGraph Was Processed For %d Threads Per Block \n", threadPerBlock);
+        // if(verbose) printf(">> %ld Packets (%.3lf GB) Processed On GPU \n", counterPing + counterPong, (sizeof(HeaderBuffer)*(counterPing + counterPong)*1.0)/(_GB_));
+        // if(verbose) printf("\t| Duration : %lf ms\n", duration);
+        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (sizeof(HeaderBuffer)*(counterPing + counterPong)*1000.0*8.0)/(_GB_*duration));
+
+        DHPacketSizePing = counterPing * sizeof(PacketBuffer);
+        DHPacketSizePong = counterPong * sizeof(PacketBuffer);
+        // timer.start();
+        CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) h_packets_ping, (void*) d_packets_ping, DHPacketSizePing, cudaMemcpyDeviceToHost, pingStream));
+        CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) h_packets_pong, (void*) d_packets_pong, DHPacketSizePong, cudaMemcpyDeviceToHost, pongStream));
         // timer.end();
         // duration = timer.elapsed();
         // totalDHDuration += duration;
-        // totalDHPacketSize += DHPacketSize;
+        // totalDHPacketSize += DHPacketSizePing + DHPacketSizePong;
 
-        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Device to Host\n", counter, (counter*sizeof(PacketBuffer))/(_GB_));
+        // if(verbose) printf(">> %ld Packets (%lf GB) Transfered From Device to Host\n", (counterPing + counterPong), ((counterPing + counterPong)*sizeof(PacketBuffer))/(_GB_));
         // if(verbose) printf("\t| Duration : %lf ms\n", duration);
-        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", (counter*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
+        // if(verbose) printf("\t| Bandwidth : %lf Gb/s\n", ((counterPing + counterPong)*sizeof(PacketBuffer)*1000.0*8.0)/(_GB_*duration));
 
-        for(size_t i = 0 ; i < counter ; i++) {  
-            ruleCount[h_packets[i].ruleId]++;
-            if(h_packets[i].ruleId == Rule_EthrIpv4UdpRtp) fprintf(fd ,"%d\n", i+1);
+        cudaStreamSynchronize(pingStream);
+        cudaStreamSynchronize(pongStream);
+
+        for(size_t i = 0 ; i < counterPing ; i++) {  
+            ruleCount[h_packets_ping[i].ruleId]++;
+            // if(h_packets_ping[i].ruleId == Rule_EthrIpv4UdpRtp) fprintf(fd ,"%d\n", i+1);
+        }
+
+        for(size_t i = 0 ; i < counterPong ; i++) {  
+            ruleCount[h_packets_pong[i].ruleId]++;
+            // if(h_packets_pong[i].ruleId == Rule_EthrIpv4UdpRtp) fprintf(fd ,"%d\n", i+1);
         }
 
         if(!verbose){

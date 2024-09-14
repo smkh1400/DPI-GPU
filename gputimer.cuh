@@ -16,10 +16,12 @@
 struct GPUTimer {
     cudaEvent_t startEvent;
     cudaEvent_t endEvent;
+    cudaStream_t stream;
     
-    GPUTimer() {
+    GPUTimer(cudaStream_t eventStream) {
         cudaEventCreate(&startEvent);
         cudaEventCreate(&endEvent);
+        stream = eventStream;
     }
 
     ~GPUTimer() {
@@ -28,11 +30,11 @@ struct GPUTimer {
     }
 
     void start() {
-        cudaEventRecord(startEvent, 0);
+        cudaEventRecord(startEvent, stream);
     }
 
     void end() {
-        cudaEventRecord(endEvent, 0);
+        cudaEventRecord(endEvent, stream);
     }
 
     float elapsed() {
