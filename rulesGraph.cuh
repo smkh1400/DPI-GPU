@@ -5,65 +5,44 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-enum RuleNames {
+enum RuleName {
     Rule_NotRegistered,
+
     Rule_EthrArp,
-    Rule_EthrIpv4,
-        Rule_EthrIPv4ICMP,
-        Rule_EthrIpv4Tcp,
-            Rule_EthrIpv4TcpHttp,
-        Rule_EthrIpv4Udp,
-            Rule_EthrIpv4UdpDns,
-            Rule_EthrIpv4UdpRtp,
-            Rule_EthrIpv4UdpSip,
-            Rule_EthrIpv4UdpGtpIpv4UdpRtp,
-            Rule_EthrIpv4UdpGtpIpv4UdpSip,
-            Rule_EthrVlanIpv4UdpRtp,
-            Rule_EthrVlanIpv4UdpSip,
-            Rule_EthrVlanIpv4UdpGtpIpv4UdpRtp,
-            Rule_EthrVlanIpv4UdpGtpIpv4UdpSip,
+    Rule_VlanEthrArp,
+
+    Rule_EthrIPv4Icmp,
+    Rule_VlanEthrIPv4Icmp,
+
+    Rule_EthrIpv4TcpHttp,
+    Rule_VlanEthrIpv4TcpHttp,
+
+    Rule_EthrIpv4UdpDns,
+    Rule_VlanEthrIpv4UdpDns,
+
+    Rule_EthrIpv4UdpRtp,
+    Rule_VlanEthrIpv4UdpRtp,
+
+    Rule_EthrIpv4UdpSip,
+    Rule_VlanEthrIpv4UdpSip,
+
+    Rule_EthrIpv4UdpGtpIpv4UdpRtp,
+    Rule_VlanEthrIpv4UdpGtpIpv4UdpRtp,
+
+    Rule_EthrIpv4UdpGtpIpv4UdpSip,
+    Rule_VlanEthrIpv4UdpGtpIpv4UdpSip,
+    
     Rule_Count
 };
 
 
 const char* getRuleName(uint32_t ruleId);
 
-template <typename T>
-class Queue {
-public:
-#define QUEUE_BUFFER_MAX_LEN        10
-    T   array[QUEUE_BUFFER_MAX_LEN];
-    size_t counter;
-
-    __device__ __host__ Queue() : counter(0){
-        for(size_t i = 0 ; i < QUEUE_BUFFER_MAX_LEN ; i++)
-            array[i] = 0;
-    }
-
-    __device__ __host__ void clone(Queue& other) {
-        for(size_t i = 0 ; i < QUEUE_BUFFER_MAX_LEN ; i++)
-            array[i] = other.array[i];
-    }
-
-    __device__ __host__ void push(T x) {
-        array[counter++] = x;
-    }
-
-    __device__ __host__ T pop() {
-        return array[counter--];
-    }
-
-    __device__ __host__ T get() {
-        return array[counter-1];
-    }
-};
-
 class HeaderBuffer {
 public:
 #define HEADER_BUFFER_DATA_MAX_SIZE     1024
     uint8_t     headerData[HEADER_BUFFER_DATA_MAX_SIZE];
     uint32_t        headerOffset;
-    // Queue<uint16_t>       ruleId;
     uint32_t                ruleId;
     bool            flag;
     size_t      packetLen;
@@ -79,18 +58,15 @@ class PacketBuffer {
 public:
 #define PACKET_BUFFER_DATA_MAX_SIZE     1600
     uint8_t         packetData[PACKET_BUFFER_DATA_MAX_SIZE];
-    // Queue<uint16_t>        ruleId;
     uint32_t            ruleId;
     size_t                  packetLen;
 
-// public:
     __device__ PacketBuffer() : ruleId(Rule_NotRegistered) {}
 
     __host__  PacketBuffer(const uint8_t* data, size_t len);
 
     friend class InspectorNode;
 };
-
 
 struct InspectorFuncOutput {
     bool        checkConditionResult;
@@ -101,7 +77,7 @@ struct InspectorFuncOutput {
 typedef void (*Inspector_t) (HeaderBuffer*, void*, InspectorFuncOutput*);
 
 class InspectorNode {
-private:
+public:
 #define INSPECTOR_NODE_CHILDREN_MAX_COUNT   10
 
     Inspector_t inspectorFunction;
@@ -109,7 +85,7 @@ private:
     size_t childrenCount;
     uint32_t ruleId;
 
-public:
+    __device__ static bool isEqual(InspectorNode* a, InspectorNode* b);
 
     __device__ InspectorNode() {}
 
@@ -123,9 +99,34 @@ public:
 
     __device__ void setInspectorFunction(Inspector_t inspectorFun);
 
+    __device__ InspectorNode* hasThisChild(InspectorNode* child);
+
+    __device__ bool insertChild(InspectorNode* n);
+
     __device__ void setRuleId(uint32_t ruleId);
 
     __device__ void setRule(Inspector_t inspectorFun, uint32_t ruleId);
+
+    friend class RuleTrie;
+};
+
+
+
+class RuleTrie {
+public:
+#define RULE_TRIE_MAX_INSPECTOR_NODE_COUNT          50
+
+    InspectorNode root;
+    InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
+    size_t nodeCounter;
+
+    __host__ __device__ RuleTrie() {}
+
+    __device__  void initTrie();
+
+    __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId);
+
+    __device__ void processTrie(HeaderBuffer* h);
 };
 
 #endif // GPU_RULES_GRAPH_H_
