@@ -58,10 +58,9 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, Ins
     inspectorFunction(header, cond, out);
 
     header->flag &= out->checkConditionResult;
-    header->ruleId = header->ruleId!=Rule_NotRegistered ? header->ruleId : header->flag ? ruleId : Rule_NotRegistered;
-    // bool c0 = (header->ruleId == Rule_NotRegistered);
-    // bool c1 = (header->flag == true);
-    // header->ruleId = (!c0) * (header->ruleId) + (c0) * (c1) * (ruleId) + (c0) * (!c1) * (Rule_NotRegistered);
+    bool c0 = (header->ruleId == Rule_NotRegistered);
+    bool c1 = (header->flag == true);
+    header->ruleId = (!c0) * (header->ruleId) + (c0) * (c1) * (ruleId) + (c0) * (!c1) * (Rule_NotRegistered);
     size_t newOffset = header->headerOffset + out->calculatedOffset;
     header->headerOffset = (header->packetLen >= newOffset & newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
 
