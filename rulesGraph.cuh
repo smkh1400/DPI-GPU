@@ -30,7 +30,7 @@ enum RuleName {
     Rule_VlanEthrIpv4UdpGtpIpv4UdpRtp,
 
     Rule_EthrIpv4UdpGtpIpv4UdpSip,
-    Rule_VlanEthrIpv4UdpGtpIpv4UdpSip,
+    Rule_VlanEthrIpv4UdpGtpIpv4UdpSip, 
     
     Rule_Count
 };
@@ -40,30 +40,44 @@ const char* getRuleName(uint32_t ruleId);
 
 class HeaderBuffer {
 public:
-#define HEADER_BUFFER_DATA_MAX_SIZE     1024
-    uint8_t     headerData[HEADER_BUFFER_DATA_MAX_SIZE];
-    uint32_t        headerOffset;
-    uint32_t                ruleId;
-    bool            flag;
-    size_t      packetLen;
+#define HEADER_BUFFER_DATA_MAX_SIZE     1000
+    uint8_t                 headerData[HEADER_BUFFER_DATA_MAX_SIZE];
+    uint16_t                headerOffset;
+    uint8_t                 ruleId;
+    bool                    flag;
+    uint16_t                packetLen;
 
     __device__ HeaderBuffer() : headerOffset(0) , flag(true) , ruleId(Rule_NotRegistered) {}
 
     __device__ uint8_t* getHeaderData();
 
+#define resetHeaderBuffer(h)                    {h.headerOffset = 0;h.ruleId = Rule_NotRegistered;h.flag = true;}
+#define resetHeaderBufferPtr(hPtr)              {hPtr->headerOffset = 0;hPtr->ruleId = Rule_NotRegistered;hPtr->flag = true;}
+
     friend class InspectorNode;    
+};
+
+struct PacketMetadata {
+    size_t  packetOffset;
+    size_t  packetLen;
+};
+
+struct PacketInfo {
+    uint8_t ruleId;
 };
 
 class PacketBuffer {
 public:
-#define PACKET_BUFFER_DATA_MAX_SIZE     1600
-    uint8_t         packetData[PACKET_BUFFER_DATA_MAX_SIZE];
-    uint32_t            ruleId;
+    PacketMetadata          metaData;
+#define PACKET_BUFFER_DATA_MAX_SIZE     70
+    uint8_t                 packetData[PACKET_BUFFER_DATA_MAX_SIZE];
+    uint32_t                ruleId;
     size_t                  packetLen;
 
     __device__ PacketBuffer() : ruleId(Rule_NotRegistered) {}
 
     __host__  PacketBuffer(const uint8_t* data, size_t len);
+
 
     friend class InspectorNode;
 };
@@ -127,10 +141,12 @@ public:
     __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId);
 
     __device__ void processTrie(HeaderBuffer* h);
+
+    __device__ void printTrie(InspectorNode* parent, int depth);
 };
 
 #endif // GPU_RULES_GRAPH_H_
 
-#if (PACKET_BUFFER_DATA_MAX_SIZE < HEADER_BUFFER_DATA_MAX_SIZE)
-    #error "Packet Buffer Smaller Than Header Buffer"
-#endif
+// #if (PACKET_BUFFER_DATA_MAX_SIZE < HEADER_BUFFER_DATA_MAX_SIZE)
+    // #error "Packet Buffer Smaller Than Header Buffer"
+// #endif

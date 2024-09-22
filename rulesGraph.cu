@@ -3,7 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 
-const char* getRuleName(uint32_t ruleId) {
+
+ 
+__device__ __host__ const char* getRuleName(uint32_t ruleId) {
     switch (ruleId)
     {
         case Rule_EthrArp:                                          return "Ethernet-ARP";
@@ -57,8 +59,11 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, Ins
 
     header->flag &= out->checkConditionResult;
     header->ruleId = header->ruleId!=Rule_NotRegistered ? header->ruleId : header->flag ? ruleId : Rule_NotRegistered;
+    // bool c0 = (header->ruleId == Rule_NotRegistered);
+    // bool c1 = (header->flag == true);
+    // header->ruleId = (!c0) * (header->ruleId) + (c0) * (c1) * (ruleId) + (c0) * (!c1) * (Rule_NotRegistered);
     size_t newOffset = header->headerOffset + out->calculatedOffset;
-    header->headerOffset = (header->packetLen >= newOffset && newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
+    header->headerOffset = (header->packetLen >= newOffset & newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
 
     bool pFlag = header->flag;
     int32_t pOffset = header->headerOffset;
@@ -106,16 +111,15 @@ __device__ bool InspectorNode::insertChild(InspectorNode* n) {
 }
 
 __device__ static void root_inspector(HeaderBuffer* p, void* cond, InspectorFuncOutput* out) {
-
     out->checkConditionResult = true;
     out->extractedCondition = NULL;
     out->calculatedOffset = 0;
-
 }
 
 __device__ void RuleTrie::initTrie() {
     root.childrenCount = 0; 
     root.inspectorFunction = (Inspector_t) root_inspector;
+    root.ruleId = Rule_NotRegistered;
     nodeCounter = 0;
 }
 
@@ -136,6 +140,7 @@ __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, Rule
     while(ruleCounter < nodesCount) {
         InspectorNode* newNode = &nodes[nodeCounter];
         newNode->childrenCount = 0;
+        newNode->ruleId = Rule_NotRegistered;
         newNode->inspectorFunction = rule[ruleCounter];
         res &= currentNode->insertChild(newNode);
         if(!res) break;
@@ -150,8 +155,30 @@ __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, Rule
     return res;
 }
 
+
 __device__ void RuleTrie::processTrie(HeaderBuffer* h) {
     InspectorFuncOutput out;
-    for(int i = 0 ; i < root.childrenCount ; i++)
-        root.childrenNodes[i]->processNode(h, NULL, &out);
+    root.processNode(h, NULL, &out);
 }
+
+__device__ void RuleTrie::printTrie(InspectorNode* parent, int depth) {
+    for(int i =0 ; i < depth ; i++) printf("\t");
+    printf("%ld (%s)\n", (uintptr_t) parent->inspectorFunction, getRuleName(parent->ruleId));
+    for (int i = 0; i < parent->childrenCount; i++) {
+        printTrie(parent->childrenNodes[i], depth + 1);
+    }
+}
+
+// __device__ void RuleTrie::printTrie() {
+//     InspectorNode* currentNode = &root;
+//     int depth = -1;
+//     while (1) {
+//         depth += 1;
+//         for(int j = 0; j < depth; j++) printf("\t");
+//         printf("%ld\n", (uintptr_t) currentNode->inspectorFunction);
+//         for (int i = 0; i < currentNode->childrenCount; i++) {
+//             currentNode = currentNode->childrenNodes[i];
+//         }
+//     }
+
+// }
