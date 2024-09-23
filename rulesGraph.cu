@@ -34,12 +34,6 @@ __device__ __host__ const char* getRuleName(uint32_t ruleId) {
     }
 };
 
-__host__ PacketBuffer::PacketBuffer(const uint8_t* data, size_t len) {
-    memset(packetData, 0 , PACKET_BUFFER_DATA_MAX_SIZE);
-    memcpy(packetData, data, (len < PACKET_BUFFER_DATA_MAX_SIZE) ? len : PACKET_BUFFER_DATA_MAX_SIZE);
-    packetLen = len;
-    ruleId = Rule_NotRegistered;
-}
 __device__ uint8_t* HeaderBuffer::getHeaderData() {
     return (uint8_t*) (headerData+headerOffset);
 }

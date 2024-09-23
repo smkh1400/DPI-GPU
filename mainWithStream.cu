@@ -139,7 +139,6 @@ static double findFirstTimeStamp(const char* pcapFilePath) {
     double firstTime = (double) header->ts.tv_sec + (double) (header->ts.tv_usec / 1e6);
 
     pcap_close(handle);
-    free(handle);
 
     return firstTime;
 }
@@ -496,7 +495,6 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
     }
 
     pcap_close(handle);
-    free(handle);
 
     printf("\t| Total Packets: %ld\n", totalCounter);
 

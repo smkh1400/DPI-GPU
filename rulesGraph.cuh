@@ -66,22 +66,6 @@ struct PacketInfo {
     uint8_t ruleId;
 };
 
-class PacketBuffer {
-public:
-    PacketMetadata          metaData;
-#define PACKET_BUFFER_DATA_MAX_SIZE     70
-    uint8_t                 packetData[PACKET_BUFFER_DATA_MAX_SIZE];
-    uint32_t                ruleId;
-    size_t                  packetLen;
-
-    __device__ PacketBuffer() : ruleId(Rule_NotRegistered) {}
-
-    __host__  PacketBuffer(const uint8_t* data, size_t len);
-
-
-    friend class InspectorNode;
-};
-
 struct InspectorFuncOutput {
     bool        checkConditionResult;
     void*       extractedCondition;
