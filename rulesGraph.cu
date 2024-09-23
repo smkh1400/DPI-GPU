@@ -1,10 +1,9 @@
 #include "rulesGraph.cuh"
+#include "config/config.h"
 
 #include <string.h>
 #include <stdio.h>
 
-
- 
 __device__ __host__ const char* getRuleName(uint32_t ruleId) {
     switch (ruleId)
     {
@@ -153,6 +152,14 @@ __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, Rule
 
     return res;
 }
+
+__device__ bool RuleTrie::insertRules(Rule_t rules[], size_t ruleCount) {
+    bool res = true;
+    for(int i = 0 ; i < ruleCount ; i++)
+        res &= insertRule(rules[i].inspectors, rules[i].inspectorsCount, rules[i].ruleId);
+    return res;
+}
+
 
 
 __device__ void RuleTrie::processTrie(HeaderBuffer* h) {

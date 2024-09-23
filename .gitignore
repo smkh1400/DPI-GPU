@@ -1,4 +1,6 @@
 target/
 sections/
 .vscode/
+*/test.cpp
+main
 result.ncu-rep

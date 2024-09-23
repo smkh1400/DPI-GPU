@@ -90,6 +90,19 @@ struct InspectorFuncOutput {
 
 typedef void (*Inspector_t) (HeaderBuffer*, void*, InspectorFuncOutput*);
 
+struct Rule_t {
+public:
+#define RULE_MAX_INSPECTOR_COUNT        10
+
+    Inspector_t     inspectors[RULE_MAX_INSPECTOR_COUNT];
+    size_t          inspectorsCount;
+    RuleName          ruleId;
+    const uint8_t*  ruleName;
+
+#define REGISTER_RULE(ruleID, ...)          (Rule_t) {__VA_ARGS__, sizeof(((Inspector_t[]) __VA_ARGS__))/sizeof(Inspector_t), ruleID, #ruleID}
+
+};
+
 class InspectorNode {
 public:
 #define INSPECTOR_NODE_CHILDREN_MAX_COUNT   10
@@ -129,6 +142,7 @@ public:
 class RuleTrie {
 public:
 #define RULE_TRIE_MAX_INSPECTOR_NODE_COUNT          50
+#define RULE_TRIE_MAX_INDIVIDUAL_RULE_COUNT         20
 
     InspectorNode root;
     InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
@@ -140,13 +154,11 @@ public:
 
     __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId);
 
+    __device__ bool insertRules(Rule_t rules[], size_t ruleCount);
+
     __device__ void processTrie(HeaderBuffer* h);
 
     __device__ void printTrie(InspectorNode* parent, int depth);
 };
 
 #endif // GPU_RULES_GRAPH_H_
-
-// #if (PACKET_BUFFER_DATA_MAX_SIZE < HEADER_BUFFER_DATA_MAX_SIZE)
-    // #error "Packet Buffer Smaller Than Header Buffer"
-// #endif

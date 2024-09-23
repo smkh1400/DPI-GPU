@@ -1,0 +1,4 @@
+packetsPerThread: 32
+isTimerSet: false
+mode: 0
+intervalMs: 200

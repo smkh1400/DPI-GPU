@@ -2,7 +2,7 @@
 NVCC = nvcc
 CXX = g++
 NVCC_FLAGS = --disable-warnings --generate-line-info
-CXX_FLAGS = -lpcap 
+CXX_FLAGS = -lpcap -lyaml-cpp
 INCLUDES = -Iinclude
 
 
@@ -12,7 +12,11 @@ SRCDIR = .
 
 # Files
 CU_SOURCES = $(wildcard $(SRCDIR)/*.cu)
-CXX_SOURCES = $(wildcard $(SRCDIR)/*.cpp)
+CXX_SOURCES = $(shell find $(SRCDIR) -type f -name "*.cpp")
+
+
+CU_SOURCES := $(filter-out %/test.cu, $(CU_SOURCES))
+CXX_SOURCES := $(filter-out %/test.cpp, $(CXX_SOURCES))
 
 # Target
 TARGET = main
