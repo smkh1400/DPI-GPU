@@ -45,7 +45,7 @@ T ConfigLoader::getFeild(const std::string& key) {
     } catch (const std::exception& e) {
 
         throw std::runtime_error("Error: Failed To retrieve key '" + key + "': " + std::string(e.what()));
-        
+
     }
 }
 

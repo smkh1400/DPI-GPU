@@ -3,8 +3,7 @@ isTimerSet: false
 
 # readPacketMode Options:
 # - online :
-# - offline :
-readPacketMode: online  
-
-# in online mode, in seconds
-interval: 100
+# - offline : read from pcap file
+readPacketMode: offline  
+chunkCountLimit: 200000
+chunkTimeLimit: 2000

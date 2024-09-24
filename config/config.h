@@ -6,10 +6,13 @@
 // specify config feilds here as X(feildName, feildType) 
 #define _CONFIG_FEILDS_                         \
     X(packetsPerThread, int)                    \
-    X(interval, double)                          \
     X(isTimerSet, bool)                         \
-    X(readPacketMode, std::string)
+    X(readPacketMode, std::string)              \
+    X(chunkCountLimit, int)                     \
+    X(chunkTimeLimit, double)                    
 
+#define CONFIG_FIELD_INT_NOT_SET_VAL                (-1)  
+#define CONFIG_FIELD_DOUBLE_NOT_SET_VAL             (-1.0)  
 
 namespace ConfigFeilds {
 

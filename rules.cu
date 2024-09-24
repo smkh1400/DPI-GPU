@@ -128,8 +128,6 @@ __device__ static void udpSip_inspector(HeaderBuffer *p, void *cond, InspectorFu
     const uint8_t field[] = "CSeq:";
     out->checkConditionResult = ((sport == htons(5060) || dport == htons(5060)) && (isFieldInHeader(p, field, sizeof(field) - 1)));
 
-    
-
     out->calculatedOffset = 0;
 
     out->extractedCondition = NULL;
@@ -217,4 +215,6 @@ __global__ void registerRules(RuleTrie *trie)
     };
 
     trie->insertRules(rules, sizeof(rules) / sizeof(rules[0]));
+
+    // trie->printTrie();
 }

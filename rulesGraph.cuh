@@ -4,6 +4,7 @@
 #include <cuda_runtime.h> 
 #include <stdint.h>
 #include <sys/types.h>
+#include <iostream>
 
 enum RuleName {
     Rule_NotRegistered,
@@ -51,6 +52,8 @@ public:
 
     __device__ uint8_t* getHeaderData();
 
+    __device__ size_t getValidLen();
+
     friend class InspectorNode;    
 };
 
@@ -85,7 +88,7 @@ public:
 };
 
 class InspectorNode {
-public:
+private:
 #define INSPECTOR_NODE_CHILDREN_MAX_COUNT   10
 
     Inspector_t inspectorFunction;
@@ -93,9 +96,9 @@ public:
     size_t childrenCount;
     uint32_t ruleId;
 
-    __device__ static bool isEqual(InspectorNode* a, InspectorNode* b);
+    __device__ bool operator==(const InspectorNode& lhs);
 
-    __device__ InspectorNode() {}
+    __device__ InspectorNode() = default;
 
     __device__ InspectorNode(Inspector_t inspectorFun) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(Rule_NotRegistered) {}
 
@@ -105,21 +108,15 @@ public:
 
     __device__ void processNode(HeaderBuffer* packet, void* cond, InspectorFuncOutput* out);
 
-    __device__ void setInspectorFunction(Inspector_t inspectorFun);
-
     __device__ InspectorNode* hasThisChild(InspectorNode* child);
 
     __device__ bool insertChild(InspectorNode* n);
-
-    __device__ void setRuleId(uint32_t ruleId);
-
-    __device__ void setRule(Inspector_t inspectorFun, uint32_t ruleId);
 
     friend class RuleTrie;
 };
 
 class RuleTrie {
-public:
+private:
 #define RULE_TRIE_MAX_INSPECTOR_NODE_COUNT          50
 #define RULE_TRIE_MAX_INDIVIDUAL_RULE_COUNT         20
 
@@ -127,6 +124,9 @@ public:
     InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
     size_t nodeCounter;
 
+    __device__ void printTrieHelper(const InspectorNode& parent, int depth);
+
+public:
     __host__ __device__ RuleTrie() {}
 
     __device__  void initTrie();
@@ -137,7 +137,7 @@ public:
 
     __device__ void processTrie(HeaderBuffer* h);
 
-    __device__ void printTrie(InspectorNode* parent, int depth);
+    __device__ void printTrie();
 };
 
 #endif // GPU_RULES_GRAPH_H_

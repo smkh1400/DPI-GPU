@@ -3,9 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <vector>
 #include <endian.h>
-#include <time.h>
 #include <unistd.h>
 #include <dirent.h>
 
@@ -52,7 +50,10 @@
 #define PACKETS_LOCAL_SIZE_PER_SM                           (PACKETS_SIZE_PER_SM - REGISTER_FILE_SIZE_PER_SM)
 #define PACKETS_LOCAL_SIZE_PER_GPU                          (SM_PER_GPU * PACKETS_LOCAL_SIZE_PER_SM)
 
-#define PACKET_BUFFER_CHUNK_SIZE            (PACKETS_PER_SM * SM_PER_GPU)
+// #define PACKET_BUFFER_CHUNK_SIZE            (PACKETS_PER_SM * SM_PER_GPU)
+
+#define DEFAULT_PACKET_BUFFER_CHUNK_SIZE    (196608*32)
+#define PACKET_BUFFER_CHUNK_SIZE            ((ConfigFeilds::chunkCountLimit != CONFIG_FIELD_INT_NOT_SET_VAL) ? ConfigFeilds::chunkCountLimit : DEFAULT_PACKET_BUFFER_CHUNK_SIZE)
 
 #define RULE_TRIE_SIZE                      (sizeof(RuleTrie))
 #define PACKETS_INFO_SIZE                   (PACKET_BUFFER_CHUNK_SIZE*sizeof(PacketInfo))
@@ -78,9 +79,9 @@ __global__ void performProcess(PacketMetadata* packetsMetadata, uint8_t* packets
     info->ruleId = h.ruleId;
 }
 
-static int readPacketChunkTimeMode(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize, double* startTime) {
-    *counter = 0;
+static int readPacketOfflineMode(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize, double* startTime) {
     size_t packetOffset = 0;
+    size_t packetCounter = 0;
     int result;
     static const u_char *packet;
     static struct pcap_pkthdr *header;
@@ -89,19 +90,16 @@ static int readPacketChunkTimeMode(PacketMetadata* packetsMetadata, uint8_t* pac
     do {
         if(packet != NULL && header != NULL) {
             timeStamp = (double)(header->ts.tv_sec) + (double)((header->ts.tv_usec*1.0) / 1e6f);
+            if((ConfigFeilds::chunkTimeLimit != CONFIG_FIELD_DOUBLE_NOT_SET_VAL) && (timeStamp - *startTime > ConfigFeilds::chunkTimeLimit/2)) break;                                              // Time Limit
 
-            if(timeStamp - *startTime > ConfigFeilds::interval/2) break;                                            // Time Mode
-
-            if(*counter * sizeof(PacketMetadata) >= PACKETS_METADATA_SIZE/2) break;                                 // packetMetadata Capacity
-
+            if((ConfigFeilds::chunkCountLimit != CONFIG_FIELD_INT_NOT_SET_VAL) && (packetCounter >= ConfigFeilds::chunkCountLimit/2)) break;                                                     // Count Limit
             PacketMetadata md = {.packetOffset = packetOffset, .packetLen = header->caplen};
-            packetsMetadata[*counter] = md;
+            packetsMetadata[packetCounter] = md;
 
-            if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break;                  // Mempool Capacity
-
+            if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break;                          // Mempool Limit
             memcpy(packetsMempool+md.packetOffset+sizeof(PacketInfo), packet, md.packetLen);
 
-            *counter += 1;
+            packetCounter += 1;
             packetOffset += md.packetLen+sizeof(PacketInfo);
         }
     }
@@ -109,11 +107,12 @@ static int readPacketChunkTimeMode(PacketMetadata* packetsMetadata, uint8_t* pac
 
     *startTime = timeStamp;
     *packetSize = packetOffset;
+    *counter = packetCounter;
 
     return result;
 }
 
-static pcap_t* openPcapFile(const char* pcapFilePath) {
+static inline pcap_t* openPcapFile(const char* pcapFilePath) {
     char errBuf[PCAP_ERRBUF_SIZE];
     pcap_t* handle = (pcap_t*) malloc(sizeof(pcap_t*));
     
@@ -129,7 +128,6 @@ static double findFirstTimeStamp(const char* pcapFilePath) {
     int result;
 
     if ((result = (pcap_next_ex(handle, &header, &packet))) < 0) return -1;
-
     double firstTime = (double) header->ts.tv_sec + (double) ((header->ts.tv_usec*1.0) / 1e6f);
 
     pcap_close(handle);
@@ -137,39 +135,12 @@ static double findFirstTimeStamp(const char* pcapFilePath) {
     return firstTime;
 }
 
-static int readPacketChunk(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize) {
-    *counter = 0;
-    size_t packetOffset = 0;
-    int result;
-    const u_char *packet;
-    struct pcap_pkthdr *header;
-
-    while((*counter < PACKET_BUFFER_CHUNK_SIZE / 2)) {
-
-        if(((result = (pcap_next_ex(handle, &header, &packet))) < 0)) break;
-
-        PacketMetadata md = {.packetOffset = packetOffset, .packetLen = header->caplen};
-        packetsMetadata[*counter] = md;
-
-        if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break; // TODO
-        memcpy(packetsMempool+md.packetOffset+sizeof(PacketInfo), packet, md.packetLen);
-
-        *counter += 1;
-        packetOffset += md.packetLen+sizeof(PacketInfo);
-    }
-
-    *packetSize = packetOffset;
-    return result;
-}   
-
-static bool inline hasPcapExtension(const char* filename) {
+static inline bool hasPcapExtension(const char* filename) {
     const char* ext = strrchr(filename, '.');
     if(ext != NULL && strcmp(ext, ".pcap") == 0) 
         return true;
     return false;
 }
-
-
 
 static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
@@ -238,7 +209,7 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
     registerRules<<<1,1>>>(d_trie);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-    if(verbose) printf("RuleGraph Was Registered On Device\n");
+    if(verbose) printf(">> RuleGraph Was Registered On Device\n");
 
     size_t stackSize;
     CHECK_CUDA_ERROR(cudaThreadGetLimit(&stackSize, cudaLimitStackSize));
@@ -305,9 +276,7 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         {
             //ping
             if (ConfigFeilds::readPacketMode.compare("offline") == 0)                // TODO 
-                result = readPacketChunk(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing);
-            else if(ConfigFeilds::readPacketMode.compare("online") == 0) 
-                result = readPacketChunkTimeMode(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing, &startTime);
+                result = readPacketOfflineMode(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing, &startTime);
             
             if(result < 0 && result != -2 && verbose) {
                 printf("Something went wrong in reading packets(%d)\n", result);
@@ -336,9 +305,7 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if(result != -2) {
 
             if (ConfigFeilds::readPacketMode.compare("offline") == 0)                // TODO 
-                result = readPacketChunk(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong);
-            else if(ConfigFeilds::readPacketMode.compare("online") == 0) 
-                result = readPacketChunkTimeMode(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong, &startTime);
+                result = readPacketOfflineMode(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong, &startTime);
             
             if(result < 0 && result != -2 && verbose) {
                 printf("Something went wrong in reading packets(%d)\n", result);
