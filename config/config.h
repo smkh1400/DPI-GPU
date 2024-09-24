@@ -6,9 +6,9 @@
 // specify config feilds here as X(feildName, feildType) 
 #define _CONFIG_FEILDS_                         \
     X(packetsPerThread, int)                    \
-    X(intervalMs, int)                          \
+    X(interval, double)                          \
     X(isTimerSet, bool)                         \
-    X(mode, short)
+    X(readPacketMode, std::string)
 
 
 namespace ConfigFeilds {

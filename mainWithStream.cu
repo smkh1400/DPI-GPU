@@ -78,44 +78,38 @@ __global__ void performProcess(PacketMetadata* packetsMetadata, uint8_t* packets
     info->ruleId = h.ruleId;
 }
 
-static int readPacketChunkTimeMode(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize, double startTime) {
+static int readPacketChunkTimeMode(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize, double* startTime) {
     *counter = 0;
     size_t packetOffset = 0;
     int result;
-    const u_char *packet;
-    struct pcap_pkthdr *header;
+    static const u_char *packet;
+    static struct pcap_pkthdr *header;
+    double timeStamp;
 
-    while((*counter < PACKET_BUFFER_CHUNK_SIZE / 2)) {
+    do {
+        if(packet != NULL && header != NULL) {
+            timeStamp = (double)(header->ts.tv_sec) + (double)((header->ts.tv_usec*1.0) / 1e6f);
 
-        if(((result = (pcap_next_ex(handle, &header, &packet))) < 0)) break;
+            if(timeStamp - *startTime > ConfigFeilds::interval/2) break;                                            // Time Mode
 
-        double timeStamp = (double)(header->ts.tv_sec) + (double)(header->ts.tv_usec / 1e6);
+            if(*counter * sizeof(PacketMetadata) >= PACKETS_METADATA_SIZE/2) break;                                 // packetMetadata Capacity
 
-        printf("difference is %lf and INTERVAL_MILLISECOND is %lf\n", timeStamp - startTime, ConfigFeilds::intervalMs);
+            PacketMetadata md = {.packetOffset = packetOffset, .packetLen = header->caplen};
+            packetsMetadata[*counter] = md;
 
-        if (timeStamp - startTime > ConfigFeilds::intervalMs) {
-            break;
+            if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break;                  // Mempool Capacity
+
+            memcpy(packetsMempool+md.packetOffset+sizeof(PacketInfo), packet, md.packetLen);
+
+            *counter += 1;
+            packetOffset += md.packetLen+sizeof(PacketInfo);
         }
-
-        printf("hello\n");
-
-        PacketMetadata md = {.packetOffset = packetOffset, .packetLen = header->caplen};
-        packetsMetadata[*counter] = md;
-
-        if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break;
-        memcpy(packetsMempool+md.packetOffset+sizeof(PacketInfo), packet, md.packetLen);
-
-        if (counter == 0) {
-            for (int i = 0; i < md.packetLen; i++) {
-                printf("%02X ", packetsMempool + md.packetOffset + sizeof(PacketInfo) + i);
-            }
-        }
-
-        *counter += 1;
-        packetOffset += md.packetLen+sizeof(PacketInfo);
     }
+    while(((result = (pcap_next_ex(handle, &header, &packet))) >= 0));
 
+    *startTime = timeStamp;
     *packetSize = packetOffset;
+
     return result;
 }
 
@@ -136,7 +130,7 @@ static double findFirstTimeStamp(const char* pcapFilePath) {
 
     if ((result = (pcap_next_ex(handle, &header, &packet))) < 0) return -1;
 
-    double firstTime = (double) header->ts.tv_sec + (double) (header->ts.tv_usec / 1e6);
+    double firstTime = (double) header->ts.tv_sec + (double) ((header->ts.tv_usec*1.0) / 1e6f);
 
     pcap_close(handle);
 
@@ -157,14 +151,8 @@ static int readPacketChunk(PacketMetadata* packetsMetadata, uint8_t* packetsMemp
         PacketMetadata md = {.packetOffset = packetOffset, .packetLen = header->caplen};
         packetsMetadata[*counter] = md;
 
-        if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break;
+        if(md.packetOffset+md.packetLen+sizeof(PacketInfo) >= PACKETS_MEMPOOL_SIZE / 2) break; // TODO
         memcpy(packetsMempool+md.packetOffset+sizeof(PacketInfo), packet, md.packetLen);
-
-        if (counter == 0) {
-            for (int i = 0; i < md.packetLen; i++) {
-                printf("%02X ", packetsMempool + md.packetOffset + sizeof(PacketInfo) + i);
-            }
-        }
 
         *counter += 1;
         packetOffset += md.packetLen+sizeof(PacketInfo);
@@ -174,7 +162,7 @@ static int readPacketChunk(PacketMetadata* packetsMetadata, uint8_t* packetsMemp
     return result;
 }   
 
-static bool hasPcapExtension(const char* filename) {
+static bool inline hasPcapExtension(const char* filename) {
     const char* ext = strrchr(filename, '.');
     if(ext != NULL && strcmp(ext, ".pcap") == 0) 
         return true;
@@ -227,9 +215,6 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
     uint8_t* h_packetsMemPoolPing;
     uint8_t* h_packetsMemPoolPong;
 
-    // h_packetsMetadata = (PacketMetadata*) malloc(PACKETS_METADATA_SIZE);
-    // h_packetsMemPool = (uint8_t*) malloc(PACKETS_MEMPOOL_SIZE);
-
     CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_packetsMetadataPing, PACKETS_METADATA_SIZE / 2, cudaHostAllocDefault));
     CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_packetsMetadataPong, PACKETS_METADATA_SIZE / 2, cudaHostAllocDefault));
     CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_packetsMemPoolPing, PACKETS_MEMPOOL_SIZE / 2, cudaHostAllocDefault));
@@ -257,8 +242,6 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
     size_t stackSize;
     CHECK_CUDA_ERROR(cudaThreadGetLimit(&stackSize, cudaLimitStackSize));
-
-    // size_t counter;
 
     size_t counterPing;
     size_t counterPong;
@@ -312,46 +295,70 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
     double startTime = findFirstTimeStamp(pcapFilePath);
 
+    int result = 0;
+
     while (1) {
-
-        int result;
-
-        //ping
-
-        if (ConfigFeilds::mode == 0)
-            result = readPacketChunk(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing);
-        else 
-            result = readPacketChunkTimeMode(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing, startTime);
         
-        startTime += ConfigFeilds::intervalMs;
-        
-        if(result < 0 && result != -2 && verbose) {
-            printf("Something went wrong in reading packets(%d)\n", result);
-            printf("The Error was : %s\n", pcap_geterr(handle));
-            printf("The counter was %d\n", counterPing);
-        }
-
-        if(result == -1) 
-            break;
-
-        //pong
-        result = readPacketChunk(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong);
-        if(result < 0 && result != -2 && verbose) {
-            printf("Something went wrong in reading packets(%d)\n", result);
-            printf("The Error was : %s\n", pcap_geterr(handle));
-            printf("The counter was %d\n", counterPong);
-        }
-
-        if(result == -1) 
-            break;
-
-
         if(verbose) printf(">> Chunk %d Started\n", chunkCounter+1);
 
-        totalCounter += counterPing + counterPong;
-        totalPacketSize += packetSizePing + packetSizePong;
+        if(result != -2)
+        {
+            //ping
+            if (ConfigFeilds::readPacketMode.compare("offline") == 0)                // TODO 
+                result = readPacketChunk(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing);
+            else if(ConfigFeilds::readPacketMode.compare("online") == 0) 
+                result = readPacketChunkTimeMode(h_packetsMetadataPing, h_packetsMemPoolPing, handle, &counterPing, &packetSizePing, &startTime);
+            
+            if(result < 0 && result != -2 && verbose) {
+                printf("Something went wrong in reading packets(%d)\n", result);
+                printf("The Error was : %s\n", pcap_geterr(handle));
+                printf("The counter was %d\n", counterPing);
+            }
 
-        if(verbose) printf("%ld Packets Was Read From Pcap File\n", counterPing + counterPong);
+            if(result == -1) 
+                break;
+
+            totalCounter += counterPing;
+            totalPacketSize += packetSizePing;
+
+            if(verbose) printf("[PING] - %ld Packets Read From Pcap File\n", counterPing);
+        } else {
+            counterPing = 0;
+            packetSizePing = 0;
+
+            if(verbose) printf("[PING] - End Of Pcap File\n");
+
+            break;
+        } 
+
+        //pong
+
+        if(result != -2) {
+
+            if (ConfigFeilds::readPacketMode.compare("offline") == 0)                // TODO 
+                result = readPacketChunk(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong);
+            else if(ConfigFeilds::readPacketMode.compare("online") == 0) 
+                result = readPacketChunkTimeMode(h_packetsMetadataPong, h_packetsMemPoolPong, handle, &counterPong, &packetSizePong, &startTime);
+            
+            if(result < 0 && result != -2 && verbose) {
+                printf("Something went wrong in reading packets(%d)\n", result);
+                printf("The Error was : %s\n", pcap_geterr(handle));
+                printf("The counter was %d\n", counterPong);
+            }
+
+            if(result == -1) 
+                break;
+
+            totalCounter += counterPong;
+            totalPacketSize += packetSizePong;
+
+            if(verbose) printf("[PONG] - %ld Packets Read From Pcap File\n", counterPing);
+        } else {
+            counterPong = 0;
+            packetSizePong = 0;
+
+            if(verbose) printf("[PONG] - End Of Pcap File\n");
+        }
 
         timerChunk.start();
 
@@ -362,9 +369,9 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationHDPing = timerHDPing.elapsed();
         if (ConfigFeilds::isTimerSet) totalHDDuration += durationHDPing;
 
-        if(verbose && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Host To Device in ping \n", (counterPing), (packetSizePing)/(_GB_), (counterPing * sizeof(PacketMetadata)) / (_GB_));
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| DurationHDPing : %lf ms\n", durationHDPing);
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| BandwidthHDPing : %lf Gb/s\n", ((packetSizePing + counterPing * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationHDPing));
+        if(verbose) printf("[PING] - %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Host To Device \n", (counterPing), (packetSizePing)/(_GB_), (counterPing * sizeof(PacketMetadata)) / (_GB_));
+        if(verbose && ConfigFeilds::isTimerSet) printf("[PING]\t| DurationHDPing : %lf ms\n", durationHDPing);
+        if(verbose && ConfigFeilds::isTimerSet) printf("[PING]\t| BandwidthHDPing : %lf Gb/s\n", ((packetSizePing + counterPing * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationHDPing));
 
         if (ConfigFeilds::isTimerSet) timerHDPong.start();
         CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) d_packetsMemPoolPong, (void*) h_packetsMemPoolPong, packetSizePong, cudaMemcpyHostToDevice, pongStream));
@@ -373,13 +380,13 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationHDPong = timerHDPong.elapsed();
         if (ConfigFeilds::isTimerSet) totalHDDuration += durationHDPong;
 
-        if(verbose && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Host To Device in pong \n", (counterPong), (packetSizePong)/(_GB_), (counterPong * sizeof(PacketMetadata)) / (_GB_));
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| DurationHDPong : %lf ms\n", durationHDPong);
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| BandwidthHDPong : %lf Gb/s\n", ((packetSizePong + counterPong * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationHDPong));
-        if(verbose && ConfigFeilds::isTimerSet) printf("*******************************************\n\n");
+        if(verbose) printf("[PONG] - %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Host To Device \n", (counterPong), (packetSizePong)/(_GB_), (counterPong * sizeof(PacketMetadata)) / (_GB_));
+        if(verbose && ConfigFeilds::isTimerSet) printf("[PONG]\t| DurationHDPong : %lf ms\n", durationHDPong);
+        if(verbose && ConfigFeilds::isTimerSet) printf("[PONG]\t| BandwidthHDPong : %lf Gb/s\n", ((packetSizePong + counterPong * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationHDPong));
+        
+        if(verbose) printf("______________________________________________________________________\n");
 
         totalHDPacketSize += packetSizePing + packetSizePong + (counterPing + counterPong) * sizeof(PacketMetadata);
-
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         
@@ -391,10 +398,10 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationKernelPing = timerKernelPing.elapsed();
         if (ConfigFeilds::isTimerSet) totalKernelDuration += durationKernelPing;
                 
-        if(verbose  && ConfigFeilds::isTimerSet) printf(">> RuleGraph Was Processed For %d Threads Per Block in ping\n", threadPerBlock);
-        if(verbose  && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%.3lf GB) Processed On GPU in ping+pong \n", counterPing, ((packetSizePing) * 1.0)/(_GB_));
-        if(verbose  && ConfigFeilds::isTimerSet) printf("\t| DurationKernel : %lf ms\n", durationKernelPing);
-        if(verbose  && ConfigFeilds::isTimerSet) printf("\t| BandwidthKernel : %lf Gb/s\n", ((packetSizePing) * 1000.0 * 8.0)/(_GB_*durationKernelPing));
+        if(verbose) printf("[PING] -  RuleGraph Was Processed For %d Threads Per Block\n", threadPerBlock);
+        if(verbose) printf("[PING] - %ld Packets (%.3lf GB) Processed On GPU\n", counterPing, ((packetSizePing) * 1.0)/(_GB_));
+        if(verbose  && ConfigFeilds::isTimerSet) printf("[PING]\t| DurationKernel : %lf ms\n", durationKernelPing);
+        if(verbose  && ConfigFeilds::isTimerSet) printf("[PING]\t| BandwidthKernel : %lf Gb/s\n", ((packetSizePing) * 1000.0 * 8.0)/(_GB_*durationKernelPing));
 
         if (ConfigFeilds::isTimerSet) timerKernelPong.start();
         performProcess<<<((counterPong+threadPerBlock-1)/threadPerBlock), threadPerBlock, 0, pongStream>>>(d_packetsMetadataPong, d_packetsMemPoolPong, counterPong, d_trie);
@@ -402,12 +409,12 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationKernelPong = timerKernelPong.elapsed();
         if (ConfigFeilds::isTimerSet) totalKernelDuration += durationKernelPong;
 
-        if(verbose  && ConfigFeilds::isTimerSet) printf(">> RuleGraph Was Processed For %d Threads Per Block in pong\n", threadPerBlock);
-        if(verbose  && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%.3lf GB) Processed On GPU in pong \n", counterPong, ((packetSizePong) * 1.0)/(_GB_));
-        if(verbose  && ConfigFeilds::isTimerSet) printf("\t| DurationKernelPong : %lf ms\n", durationKernelPong);
-        if(verbose  && ConfigFeilds::isTimerSet) printf("\t| BandwidthKernelPong : %lf Gb/s\n", ((packetSizePong) * 1000.0 * 8.0)/(_GB_*durationKernelPong));
-        if(verbose && ConfigFeilds::isTimerSet) printf("*******************************************\n\n");
+        if(verbose) printf("[PONG] - RuleGraph Was Processed For %d Threads Per Block\n", threadPerBlock);
+        if(verbose) printf("[PONG] - %ld Packets (%.3lf GB) Processed On GPU \n", counterPong, ((packetSizePong) * 1.0)/(_GB_));
+        if(verbose  && ConfigFeilds::isTimerSet) printf("[PONG]\t| DurationKernelPong : %lf ms\n", durationKernelPong);
+        if(verbose  && ConfigFeilds::isTimerSet) printf("[PONG]\t| BandwidthKernelPong : %lf Gb/s\n", ((packetSizePong) * 1000.0 * 8.0)/(_GB_*durationKernelPong));
 
+        if(verbose) printf("______________________________________________________________________\n");
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -419,9 +426,9 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationDHPing = timerDHPing.elapsed();
         if (ConfigFeilds::isTimerSet) totalDHDuration += durationDHPing;
 
-        if(verbose && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Device to Host in ping \n", (counterPing), (packetSizePing)/(_GB_), (counterPing * sizeof(PacketMetadata)) / (_GB_));
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| DurationDHPing : %lf ms\n", durationDHPing);
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| BandwidthDHPing : %lf Gb/s\n", ((packetSizePing + counterPing * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationDHPing));
+        // if(verbose) printf("[PING] - %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Device to Host\n", (counterPing), (packetSizePing)/(_GB_), (counterPing * sizeof(PacketMetadata)) / (_GB_));
+        // if(verbose && ConfigFeilds::isTimerSet) printf("[PONG]\t| DurationDHPing : %lf ms\n", durationDHPing);
+        // if(verbose && ConfigFeilds::isTimerSet) printf("[PING]\t| BandwidthDHPing : %lf Gb/s\n", ((packetSizePing + counterPing * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationDHPing));
 
         if (ConfigFeilds::isTimerSet) timerDHPong.start();
         CHECK_CUDA_ERROR(cudaMemcpyAsync((void*) h_packetsMetadataPong, (void*) d_packetsMetadataPong, counterPong * sizeof(PacketMetadata), cudaMemcpyDeviceToHost, pongStream));
@@ -430,10 +437,11 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         if (ConfigFeilds::isTimerSet) durationDHPong = timerDHPong.elapsed();
         if (ConfigFeilds::isTimerSet) totalDHDuration += durationDHPong;
 
-        if(verbose && ConfigFeilds::isTimerSet) printf(">> %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Device to Host in pong \n", (counterPong), (packetSizePong)/(_GB_), (counterPong * sizeof(PacketMetadata)) / (_GB_));
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| DurationDHPong : %lf ms\n", durationDHPong);
-        if(verbose && ConfigFeilds::isTimerSet) printf("\t| BandwidthDHPong : %lf Gb/s\n", ((packetSizePong + counterPong * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationDHPong));
-        if(verbose && ConfigFeilds::isTimerSet) printf("*******************************************\n\n");
+        // if(verbose) printf("[PONG] - %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered From Device to Host\n", (counterPong), (packetSizePong)/(_GB_), (counterPong * sizeof(PacketMetadata)) / (_GB_));
+        // if(verbose && ConfigFeilds::isTimerSet) printf("[PONG]\t| DurationDHPong : %lf ms\n", durationDHPong);
+        // if(verbose && ConfigFeilds::isTimerSet) printf("[PONG]\t| BandwidthDHPong : %lf Gb/s\n", ((packetSizePong + counterPong * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_*durationDHPong));
+
+        if(verbose) printf("______________________________________________________________________\n");
 
         totalDHPacketSize += (packetSizePing + packetSizePong) + (counterPing + counterPong) * sizeof(PacketMetadata);
 
@@ -441,10 +449,11 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
         durationChunk = timerChunk.elapsed();
         totalDuration += durationChunk;
 
-        if(verbose) printf(">> %ld Packets (%lf GB Mempool and %lf GB Mem) Transfered\n", (counterPing + counterPong), (packetSizePing + packetSizePong)/(_GB_), ((counterPing + counterPong) * sizeof(PacketMetadata)) / (_GB_));
+        if(verbose) printf(">> %ld Packets (%lf GB Mempool and %lf GB Metadata) Transfered\n", (counterPing + counterPong), (packetSizePing + packetSizePong)/(_GB_), ((counterPing + counterPong) * sizeof(PacketMetadata)) / (_GB_));
         if(verbose) printf("\t| DurationChunk : %lf ms\n", durationChunk);
         if(verbose) printf("\t| BandwidthChunk : %lf Gb/s\n", (((packetSizePing + packetSizePong) + (counterPing + counterPong) * sizeof(PacketMetadata)) * 1000.0 * 8.0)/(_GB_ * durationChunk));
-        if(verbose) printf("********************************************************************************************************\n\n");
+        if(verbose) printf("########################################################################\n\n");
+
 
         cudaStreamSynchronize(pingStream);
         cudaStreamSynchronize(pongStream);
@@ -477,12 +486,10 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
             fflush(stdout);
         }
 
-        if (result == -2) {
-            break;
-        }
-
         chunkCounter++;
-        if(verbose) printf("---------------------------------------------------------------\n\n");
+
+        if(result == -2)
+            break;
     }
 
 
@@ -496,15 +503,13 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
     pcap_close(handle);
 
-    printf("\t| Total Packets: %ld\n", totalCounter);
+    printf(">> Result:\n\t| Total Packets: %ld\n", totalCounter);
 
     for(size_t i = 0 ; i < Rule_Count ; i++)
         if(ruleCount[i] != 0) printf("\t| %s : %d\n", getRuleName(i), ruleCount[i]);
-    printf("**********************************************************************************************\n\n");
 
     
-    printf(">> Total: \n\t| Duration: %lf ms\n\t| Bandwidth: %lf Gb/s\n\t| Size: %lf Gb\n\n", totalDuration, (totalPacketSize * 8.0 * 1000.0) / (totalDuration * _GB_), (totalPacketSize * 8.0)/(_GB_));    
-    printf("**********************************************************************************************\n\n");
+    printf("\n\t| Duration: %lf ms\n\t| Bandwidth: %lf Gb/s\n\t| Bandwidth: %lf MPacket/s\n\t| Size: %lf Gb\n", totalDuration, (totalPacketSize * 8.0 * 1000.0) / (totalDuration * _GB_), (totalCounter * 1000.0) / (totalDuration * _MB_)  ,(totalPacketSize * 8.0)/(_GB_));    
     
     return 0;
 }
@@ -601,6 +606,7 @@ int main(int argc, char* argv[]) {
 
     if(processFile)
         return processPcapFile(pstr, verbose);
+
 
     return -1;
 }

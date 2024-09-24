@@ -30,8 +30,9 @@ __device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t 
 __device__ static bool isFieldInHeader(HeaderBuffer *h, const uint8_t *field, size_t fieldLen)                          // TODO : using trie
 {
     bool result = false;
-    for (size_t i = 0; i < HEADER_BUFFER_DATA_MAX_SIZE - fieldLen; i++)
-        result = (result) | d_strcmp(h->headerData + i, field, fieldLen);
+    size_t len = (h->packetLen < HEADER_BUFFER_DATA_MAX_SIZE) * (h->packetLen) + (h->packetLen >= HEADER_BUFFER_DATA_MAX_SIZE) * (HEADER_BUFFER_DATA_MAX_SIZE);
+    for (size_t i = h->headerOffset; i < len - fieldLen; i++)
+        result |= d_strcmp(h->headerData + i, field, fieldLen);
 
     return result;
 }
@@ -126,6 +127,8 @@ __device__ static void udpSip_inspector(HeaderBuffer *p, void *cond, InspectorFu
 
     const uint8_t field[] = "CSeq:";
     out->checkConditionResult = ((sport == htons(5060) || dport == htons(5060)) && (isFieldInHeader(p, field, sizeof(field) - 1)));
+
+    
 
     out->calculatedOffset = 0;
 

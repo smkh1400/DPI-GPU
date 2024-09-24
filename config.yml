@@ -1,4 +1,10 @@
-packetsPerThread: 32
+packetsPerThread: 64
 isTimerSet: false
-mode: 0
-intervalMs: 200
+
+# readPacketMode Options:
+# - online :
+# - offline :
+readPacketMode: online  
+
+# in online mode, in seconds
+interval: 100

@@ -51,9 +51,6 @@ public:
 
     __device__ uint8_t* getHeaderData();
 
-#define resetHeaderBuffer(h)                    {h.headerOffset = 0;h.ruleId = Rule_NotRegistered;h.flag = true;}
-#define resetHeaderBufferPtr(hPtr)              {hPtr->headerOffset = 0;hPtr->ruleId = Rule_NotRegistered;hPtr->flag = true;}
-
     friend class InspectorNode;    
 };
 
@@ -69,7 +66,7 @@ struct PacketInfo {
 struct InspectorFuncOutput {
     bool        checkConditionResult;
     void*       extractedCondition;
-    int32_t     calculatedOffset;
+    uint32_t     calculatedOffset;
 };
 
 typedef void (*Inspector_t) (HeaderBuffer*, void*, InspectorFuncOutput*);
@@ -120,8 +117,6 @@ public:
 
     friend class RuleTrie;
 };
-
-
 
 class RuleTrie {
 public:

@@ -57,9 +57,9 @@ void ConfigLoader::loadAllFeilds(const std::string& filePath) {
     _CONFIG_FEILDS_
     #undef X
 
-    // std::cout << "These feilds loaded from '" << filePath << "':\n";
+    std::cout << "These feilds loaded from '" << filePath << "':\n";
 
-    // #define X(feild, typ) std::cout << "\t" << #feild << ": " << ConfigFeilds::feild << std::endl;
-    // _CONFIG_FEILDS_
-    // #undef X
+    #define X(feild, typ) std::cout << "\t" << #feild << ": " << ConfigFeilds::feild << std::endl;
+    _CONFIG_FEILDS_
+    #undef X
 }
