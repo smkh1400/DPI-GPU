@@ -42,15 +42,20 @@ const char* getRuleName(uint32_t ruleId);
 class HeaderBuffer {
 public:
 #define HEADER_BUFFER_DATA_MAX_SIZE     1000
-    uint8_t                 headerData[HEADER_BUFFER_DATA_MAX_SIZE];
+    uint8_t                 headerData[HEADER_BUFFER_DATA_MAX_SIZE] = {0};
     uint16_t                headerOffset;
     uint8_t                 ruleId;
     bool                    flag;
+    bool                    alive;
     uint16_t                packetLen;
 
     __device__ HeaderBuffer() : headerOffset(0) , flag(true) , ruleId(Rule_NotRegistered) {}
 
+    __device__ HeaderBuffer(const uint8_t* packetData, size_t packetLen);
+
     __device__ uint8_t* getHeaderData();
+
+    __device__ void setHeaderData(const uint8_t* data);
 
     __device__ size_t getValidLen();
 
@@ -63,7 +68,7 @@ struct PacketMetadata {
 };
 
 struct PacketInfo {
-    uint8_t ruleId;
+    uint32_t ruleId;
 };
 
 struct InspectorFuncOutput {
@@ -103,8 +108,6 @@ private:
     __device__ InspectorNode(Inspector_t inspectorFun) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(Rule_NotRegistered) {}
 
     __device__ InspectorNode(Inspector_t inspectorFun, uint32_t ruleId) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(ruleId) {}
-
-    __device__ bool addChild(InspectorNode* child);
 
     __device__ void processNode(HeaderBuffer* packet, void* cond, InspectorFuncOutput* out);
 

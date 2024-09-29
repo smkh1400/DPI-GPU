@@ -34,32 +34,43 @@ __device__ __host__ const char* getRuleName(uint32_t ruleId) {
     }
 };
 
-__device__ uint8_t* HeaderBuffer::getHeaderData() {
+__device__ HeaderBuffer::HeaderBuffer(const uint8_t *packetData, size_t packetLen){
+    this->headerOffset = 0;
+    this->ruleId = Rule_NotRegistered;
+    this->packetLen = packetLen;
+    this->flag = true;
+    this->alive = true;
+    this->setHeaderData(packetData);
+}
+
+__device__ uint8_t *HeaderBuffer::getHeaderData() {
     return (uint8_t*) (headerData+headerOffset);
+}
+
+__device__ void HeaderBuffer::setHeaderData(const uint8_t *data) {
+    memcpy(headerData, data, ((packetLen > HEADER_BUFFER_DATA_MAX_SIZE) * HEADER_BUFFER_DATA_MAX_SIZE) + (packetLen <= HEADER_BUFFER_DATA_MAX_SIZE) * packetLen);
 }
 
 __device__ size_t HeaderBuffer::getValidLen() {
     return packetLen - headerOffset;
 }
 
-__device__ bool InspectorNode::addChild(InspectorNode* child) {
-    if(childrenCount >= INSPECTOR_NODE_CHILDREN_MAX_COUNT) {
-        return false;
-    }
-
-    childrenNodes[childrenCount++] = child;
-    return true;
-}
-
-__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, InspectorFuncOutput* out) {
+__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, InspectorFuncOutput* out) {   
     inspectorFunction(header, cond, out);
+
+    bool warpExit = __all(header->ruleId != Rule_NotRegistered);
+    if(warpExit) {
+        header->alive = false;
+        return;
+    }
 
     header->flag &= out->checkConditionResult;
     bool c0 = (header->ruleId == Rule_NotRegistered);
     bool c1 = (header->flag == true);
     header->ruleId = (!c0) * (header->ruleId) + (c0) * (c1) * (ruleId) + (c0) * (!c1) * (Rule_NotRegistered);
+
     size_t newOffset = header->headerOffset + out->calculatedOffset;
-    header->headerOffset = (header->packetLen >= newOffset & newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
+    header->headerOffset = (header->packetLen >= newOffset && newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
 
     bool pFlag = header->flag;
     int32_t pOffset = header->headerOffset;
@@ -67,6 +78,9 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, Ins
 
     for(size_t i = 0 ; i < childrenCount ; i++) {
         childrenNodes[i]->processNode(header, (void*) out->extractedCondition, out);
+
+        if(!header->alive) return;
+
         header->flag = pFlag;
         header->headerOffset = pOffset;
         out->extractedCondition = pExtractedPtr;

@@ -1,10 +1,10 @@
 #include "config.h"
 #include <iostream>
 
-namespace ConfigFeilds {
+namespace Configfields {
 
-#define X(feild, typ)  typ feild;
-_CONFIG_FEILDS_
+#define X(field, typ)  typ field;
+    _CONFIG_fieldS_
 #undef X
 
 };
@@ -23,14 +23,13 @@ void ConfigLoader::loadConfig(const std::string& filepath) {
     } catch (const YAML::BadFile& e) {
 
         throw std::runtime_error("Error: Failed to open the configuration File '" + filepath + "'.");
-
     }
 
     filePath = filepath;
 }
 
 template<typename T>
-T ConfigLoader::getFeild(const std::string& key) {
+T ConfigLoader::getfield(const std::string& key) {
 
     try {
         if(!config[key]) {
@@ -41,25 +40,23 @@ T ConfigLoader::getFeild(const std::string& key) {
     } catch(const YAML::BadConversion& e) {
 
         throw std::runtime_error("Error: Failed to convert the key '" + key + "' to the requested type: " + std::string(e.what()));
-
     } catch (const std::exception& e) {
 
         throw std::runtime_error("Error: Failed To retrieve key '" + key + "': " + std::string(e.what()));
-
     }
 }
 
-void ConfigLoader::loadAllFeilds(const std::string& filePath) {
+void ConfigLoader::loadAllfields(const std::string& filePath) {
 
     ConfigLoader cl(filePath);
 
-    #define X(feild, typ) ConfigFeilds::feild = cl.getFeild<typ>(#feild);
-    _CONFIG_FEILDS_
+    #define X(field, typ) Configfields::field = cl.getfield<typ>(#field);
+        _CONFIG_fieldS_
     #undef X
 
-    std::cout << "These feilds loaded from '" << filePath << "':\n";
+    std::cout << "These fields loaded from '" << filePath << "':\n";
 
-    #define X(feild, typ) std::cout << "\t" << #feild << ": " << ConfigFeilds::feild << std::endl;
-    _CONFIG_FEILDS_
+    #define X(field, typ) std::cout << "\t" << #field << ": " << Configfields::field << std::endl;
+        _CONFIG_fieldS_
     #undef X
 }

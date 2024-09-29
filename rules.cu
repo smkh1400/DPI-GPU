@@ -73,8 +73,9 @@ __device__ static void ethrIpv4_inspector(HeaderBuffer *p, void *cond, Inspector
     IPv4Header *hdr = (IPv4Header *)(p->getHeaderData());
     out->extractedCondition = &(hdr->protocol);
 
-    size_t optionSize = (hdr->ihl * 4) - 20;
-    out->calculatedOffset = sizeof(IPv4Header) + optionSize;
+    size_t headerSize = (hdr->ihl * 4);
+
+    out->calculatedOffset = headerSize;
 }
 
 __device__ static void ipv4Icmp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
@@ -126,6 +127,7 @@ __device__ static void udpSip_inspector(HeaderBuffer *p, void *cond, InspectorFu
     uint16_t dport = LOAD_UINT16(cond + 2);
 
     const uint8_t field[] = "CSeq:";
+
     out->checkConditionResult = ((sport == htons(5060) || dport == htons(5060)) && (isFieldInHeader(p, field, sizeof(field) - 1)));
 
     out->calculatedOffset = 0;
@@ -176,7 +178,7 @@ __device__ static void tcpHttp_inspector(HeaderBuffer *p, void *cond, InspectorF
     uint16_t sport = *((uint16_t *)cond);
     uint16_t dport = *((uint16_t *)cond + 2);
 
-    const uint8_t *fields[] = {"HTTP"};                                                 // TODO : Adding other fields
+    const uint8_t *fields[] = {"POST"};                                                 // TODO : Adding other fields
     out->checkConditionResult = (isFieldInHeader(p, fields[0], 4) && (sport == htons(0x0050) || dport == htons(0x0050)));
 
     out->extractedCondition = NULL;
@@ -189,14 +191,15 @@ __global__ void registerRules(RuleTrie *trie)
     trie->initTrie();
 
     Rule_t rules[] = {
+        
         REGISTER_RULE(Rule_EthrArp, {ethr_inspector, ethrArp_inspector}),
         REGISTER_RULE(Rule_VlanEthrArp, {vlanEthr_inspector, ethrArp_inspector}),
 
-        REGISTER_RULE(Rule_EthrIPv4Icmp, {ethr_inspector, ethrIpv4_inspector, ipv4Icmp_inspector}),
         REGISTER_RULE(Rule_VlanEthrIPv4Icmp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Icmp_inspector}),
+        REGISTER_RULE(Rule_EthrIPv4Icmp, {ethr_inspector, ethrIpv4_inspector, ipv4Icmp_inspector}),
 
-        REGISTER_RULE(Rule_EthrIpv4UdpDns, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpDns_inspector}),          // note: DNS should be registered before UDP-RTP
         REGISTER_RULE(Rule_VlanEthrIpv4UdpDns, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpDns_inspector}),
+        REGISTER_RULE(Rule_EthrIpv4UdpDns, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpDns_inspector}),          // note: DNS should be registered before UDP-RTP
 
         REGISTER_RULE(Rule_EthrIpv4UdpRtp, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpRtp_inspector}),
         REGISTER_RULE(Rule_VlanEthrIpv4UdpRtp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpRtp_inspector}),
@@ -204,8 +207,8 @@ __global__ void registerRules(RuleTrie *trie)
         REGISTER_RULE(Rule_EthrIpv4UdpSip, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpSip_inspector}),
         REGISTER_RULE(Rule_VlanEthrIpv4UdpSip, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpSip_inspector}),
 
-        REGISTER_RULE(Rule_EthrIpv4UdpGtpIpv4UdpRtp, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpGtp_inspector, gtpIpv4_inspector, ipv4Udp_inspector, udpRtp_inspector}),
         REGISTER_RULE(Rule_VlanEthrIpv4UdpGtpIpv4UdpRtp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpGtp_inspector, gtpIpv4_inspector, ipv4Udp_inspector, udpRtp_inspector}),
+        REGISTER_RULE(Rule_EthrIpv4UdpGtpIpv4UdpRtp, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpGtp_inspector, gtpIpv4_inspector, ipv4Udp_inspector, udpRtp_inspector}),
 
         REGISTER_RULE(Rule_EthrIpv4UdpGtpIpv4UdpSip, {ethr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpGtp_inspector, gtpIpv4_inspector, ipv4Udp_inspector, udpSip_inspector}),
         REGISTER_RULE(Rule_VlanEthrIpv4UdpGtpIpv4UdpSip, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Udp_inspector, udpGtp_inspector, gtpIpv4_inspector, ipv4Udp_inspector, udpSip_inspector}),

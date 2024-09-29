@@ -3,4 +3,4 @@ sections/
 .vscode/
 */test.cpp
 main
-result.ncu-rep
+*.ncu-rep
