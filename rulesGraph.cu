@@ -4,6 +4,13 @@
 #include <string.h>
 #include <stdio.h>
 
+#define ALIGN_ADDRESS(addr, struct, alignedAddr)                {                                                                                   \
+                                                                    size_t alignment = alignof(struct);                                             \
+                                                                    uintptr_t ptr = (uintptr_t) (addr);                                             \
+                                                                    void* alignedAddress = (void*) ((ptr + (alignment - 1)) & ~(alignment - 1)) ;   \
+                                                                    alignedAddr = (struct*) alignedAddress;                                         \
+                                                                }   
+
 __device__ __host__ const char* getRuleName(uint32_t ruleId) {
     switch (ruleId)
     {

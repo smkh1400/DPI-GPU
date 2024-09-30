@@ -8,7 +8,8 @@
     X(isTimerSet, bool)                         \
     X(readPacketMode, std::string)              \
     X(chunkCountLimit, int)                     \
-    X(chunkTimeLimit, double)                    
+    X(chunkTimeLimit, double)                   \
+    X(threadPerBlock, int)
 
 #define CONFIG_FIELD_INT_NOT_SET_VAL                (-1)  
 #define CONFIG_FIELD_DOUBLE_NOT_SET_VAL             (-1.0)  

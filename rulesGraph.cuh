@@ -41,7 +41,7 @@ const char* getRuleName(uint32_t ruleId);
 
 class HeaderBuffer {
 public:
-#define HEADER_BUFFER_DATA_MAX_SIZE     1000
+#define HEADER_BUFFER_DATA_MAX_SIZE     250
     uint8_t                 headerData[HEADER_BUFFER_DATA_MAX_SIZE] = {0};
     uint16_t                headerOffset;
     uint8_t                 ruleId;

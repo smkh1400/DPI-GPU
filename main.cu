@@ -52,7 +52,7 @@
 
 // #define PACKET_BUFFER_CHUNK_SIZE            (PACKETS_PER_SM * SM_PER_GPU)
 
-#define DEFAULT_PACKET_BUFFER_CHUNK_SIZE    (196608*32)
+#define DEFAULT_PACKET_BUFFER_CHUNK_SIZE    (196608*8)
 #define PACKET_BUFFER_CHUNK_SIZE            ((Configfields::chunkCountLimit != CONFIG_FIELD_INT_NOT_SET_VAL) ? Configfields::chunkCountLimit : DEFAULT_PACKET_BUFFER_CHUNK_SIZE)
 
 #define RULE_TRIE_SIZE                      (sizeof(RuleTrie))
@@ -86,8 +86,6 @@ static int readPacketOfflineMode(PacketMetadata* packetsMetadata, uint8_t* packe
     static const u_char *packet;
     static struct pcap_pkthdr *header;
     double timeStamp;
-
-    if(fd == NULL)  fd = fopen("packetsLen.txt", "w");
 
     do {
         if(packet != NULL && header != NULL) {
@@ -354,7 +352,7 @@ static int processPcapFile(const char* pcapFilePath, bool verbose) {
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         
-        int threadPerBlock = 256;
+        int threadPerBlock = Configfields::threadPerBlock;
         
         if (Configfields::isTimerSet) timerKernelPing.start();
         performProcess<<<((counterPing + threadPerBlock - 1)/threadPerBlock), threadPerBlock, 0, pingStream>>>(d_packetsMetadataPing, d_packetsMemPoolPing, counterPing, d_trie);

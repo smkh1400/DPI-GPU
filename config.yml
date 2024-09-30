@@ -6,3 +6,5 @@ isTimerSet: false
 readPacketMode: offline  
 chunkCountLimit: -1
 chunkTimeLimit: -1
+
+threadPerBlock: 32
