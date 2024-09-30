@@ -22,9 +22,11 @@ __device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t 
 {
     size_t counter = 0;
     for (size_t i = 0; i < n; i++)
+        // if(a[i] != b[i]) return false;
         counter += (a[i] == b[i]);
 
     return (counter == n);
+    // return true;
 }
 
 __device__ static bool isFieldInHeader(HeaderBuffer *h, const uint8_t *field, size_t fieldLen)                          // TODO : using trie
@@ -43,6 +45,8 @@ __device__ static void ethr_inspector(HeaderBuffer *p, void *cond, InspectorFunc
 {
     out->checkConditionResult = true;
 
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
     EthrHeader *hdr = (EthrHeader *)(p->getHeaderData());
     out->extractedCondition = &(hdr->ethrType);
     out->calculatedOffset = sizeof(EthrHeader);
@@ -50,6 +54,8 @@ __device__ static void ethr_inspector(HeaderBuffer *p, void *cond, InspectorFunc
 
 __device__ static void vlanEthr_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
     EthrVlanHeader *hdr = (EthrVlanHeader *)p->getHeaderData();
     out->checkConditionResult = (hdr->vlanTag.tpid == ntohs(0x8100));
 
@@ -59,7 +65,9 @@ __device__ static void vlanEthr_inspector(HeaderBuffer *p, void *cond, Inspector
 }
 __device__ static void ethrArp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint16_t ethrType = *((uint16_t *)cond);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint16_t ethrType = LOAD_UINT16(cond);
     out->checkConditionResult = (ethrType == htons(0x0806));
 
     out->extractedCondition = NULL;
@@ -69,7 +77,9 @@ __device__ static void ethrArp_inspector(HeaderBuffer *p, void *cond, InspectorF
 
 __device__ static void ethrIpv4_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint16_t ethrType = *((uint16_t *)cond);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint16_t ethrType = LOAD_UINT16(cond);
     out->checkConditionResult = (ethrType == htons(0x0800));
 
     IPv4Header *hdr = (IPv4Header *)(p->getHeaderData());
@@ -82,7 +92,9 @@ __device__ static void ethrIpv4_inspector(HeaderBuffer *p, void *cond, Inspector
 
 __device__ static void ipv4Icmp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint8_t protocol = *((uint8_t *)cond);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint8_t protocol = LOAD_UINT8(cond);
     out->checkConditionResult = (protocol == 0x01);
 
     out->extractedCondition = NULL;
@@ -92,7 +104,9 @@ __device__ static void ipv4Icmp_inspector(HeaderBuffer *p, void *cond, Inspector
 
 __device__ static void ipv4Udp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint8_t protocol = *((uint8_t *)cond);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint8_t protocol = LOAD_UINT8(cond);
     out->checkConditionResult = (protocol == 0x11);
 
     UDPHeader *hdr = (UDPHeader *)(p->getHeaderData());
@@ -103,8 +117,10 @@ __device__ static void ipv4Udp_inspector(HeaderBuffer *p, void *cond, InspectorF
 
 __device__ static void udpDns_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint16_t sport = *((uint16_t *)cond);
-    uint16_t dport = *((uint16_t *)(cond + 2));
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint16_t sport = LOAD_UINT16(cond);
+    uint16_t dport = LOAD_UINT16(cond+2);
     out->checkConditionResult = ((sport == htons(0x0035)) || (dport == htons(0x0035)));
 
     out->extractedCondition = NULL;
@@ -114,7 +130,9 @@ __device__ static void udpDns_inspector(HeaderBuffer *p, void *cond, InspectorFu
 
 __device__ static void udpRtp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    int16_t rtp_len = p->packetLen - p->headerOffset;
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint16_t rtp_len = p->packetLen - p->headerOffset;
     RTPHeader *hdr = (RTPHeader *)p->getHeaderData();
     out->checkConditionResult = (rtp_len >= 12) && (hdr->version == 0b10) && (hdr->pt <= 64 || hdr->pt >= 96);
 
@@ -125,10 +143,12 @@ __device__ static void udpRtp_inspector(HeaderBuffer *p, void *cond, InspectorFu
 
 __device__ static void udpSip_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
     uint16_t sport = LOAD_UINT16(cond);
     uint16_t dport = LOAD_UINT16(cond + 2);
 
-    const uint8_t field[] = "SIP/2.0";
+    const uint8_t field[] = "SIP/2.0";  // could also check CSeq:
 
     out->checkConditionResult = ((sport == htons(5060) || dport == htons(5060)) && (isFieldInHeader(p, field, sizeof(field) - 1)));
 
@@ -139,6 +159,8 @@ __device__ static void udpSip_inspector(HeaderBuffer *p, void *cond, InspectorFu
 
 __device__ static void udpGtp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
     GTPHeader *hdr = (GTPHeader *)p->getHeaderData();
 
     uint8_t version = hdr->version;
@@ -153,6 +175,8 @@ __device__ static void udpGtp_inspector(HeaderBuffer *p, void *cond, InspectorFu
 
 __device__ static void gtpIpv4_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
     IPv4Header *hdr = (IPv4Header *)p->getHeaderData();
     uint8_t version = hdr->version;
 
@@ -165,7 +189,9 @@ __device__ static void gtpIpv4_inspector(HeaderBuffer *p, void *cond, InspectorF
 
 __device__ static void ipv4Tcp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint8_t protocol = *((uint8_t *)cond);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint8_t protocol = LOAD_UINT8(cond);
     out->checkConditionResult = (protocol == 0x06);
 
     TCPHeader *hdr = (TCPHeader *)(p->getHeaderData());
@@ -177,8 +203,10 @@ __device__ static void ipv4Tcp_inspector(HeaderBuffer *p, void *cond, InspectorF
 
 __device__ static void tcpHttp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
 {
-    uint16_t sport = *((uint16_t *)cond);
-    uint16_t dport = *((uint16_t *)cond + 2);
+    // if(threadIdx.x + blockIdx.x*blockDim.x == 0) printf("%s Started\n", __FUNCTION__);
+
+    uint16_t sport = LOAD_UINT16(cond);
+    uint16_t dport = LOAD_UINT16(cond+2);
 
     const uint8_t *fields[] = {"POST"};                                                 // TODO : Adding other fields
     out->checkConditionResult = (isFieldInHeader(p, fields[0], 4) && (sport == htons(0x0050) || dport == htons(0x0050)));
@@ -190,7 +218,6 @@ __device__ static void tcpHttp_inspector(HeaderBuffer *p, void *cond, InspectorF
 
 __global__ void registerRules(RuleTrie *trie)
 {
-    trie->initTrie();
 
     Rule_t rules[] = {
         
@@ -219,7 +246,10 @@ __global__ void registerRules(RuleTrie *trie)
         REGISTER_RULE(Rule_VlanEthrIpv4TcpHttp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Tcp_inspector, tcpHttp_inspector}),
     };
 
-    trie->insertRules(rules, sizeof(rules) / sizeof(rules[0]));
+    trie->initTrie();
+    
+    if(!trie->insertRules(rules, sizeof(rules) / sizeof(rules[0])))
+        printf(">> Something Went Wrong In Inserting Rules\n");
 
     // trie->printTrie();
 }

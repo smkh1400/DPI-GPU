@@ -22,9 +22,6 @@
     }                                                                           \
 }
 
-#define __DEBUG_ENABLE      (1)
-#define __DEBUG_LOG(...)         {if(__DEBUG_ENABLE) {printf(__VA_ARGS__);}}
-
 #define ALIGN_ADDRESS(addr, struct, alignedAddr)                {                                                                                   \
                                                                     size_t alignment = alignof(struct);                                             \
                                                                     uintptr_t ptr = (uintptr_t) (addr);                                             \
@@ -77,8 +74,6 @@ __global__ void performProcess(PacketMetadata* packetsMetadata, uint8_t* packets
     info->ruleId = h.ruleId;
 }
 
-FILE* fd = NULL;
-
 static int readPacketOfflineMode(PacketMetadata* packetsMetadata, uint8_t* packetsMempool ,pcap_t* handle, size_t* counter, size_t* packetSize, double* startTime) {
     size_t packetOffset = 0;
     size_t packetCounter = 0;
@@ -86,6 +81,7 @@ static int readPacketOfflineMode(PacketMetadata* packetsMetadata, uint8_t* packe
     static const u_char *packet;
     static struct pcap_pkthdr *header;
     double timeStamp;
+
 
     do {
         if(packet != NULL && header != NULL) {
@@ -102,8 +98,6 @@ static int readPacketOfflineMode(PacketMetadata* packetsMetadata, uint8_t* packe
 
             packetCounter += 1;
             packetOffset += md.packetLen+sizeof(PacketInfo);
-
-            fprintf(fd ,"%ld,", md.packetLen);
         }
     }
     while(((result = (pcap_next_ex(handle, &header, &packet))) >= 0));

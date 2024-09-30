@@ -41,8 +41,8 @@ const char* getRuleName(uint32_t ruleId);
 
 class HeaderBuffer {
 public:
-#define HEADER_BUFFER_DATA_MAX_SIZE     250
-    uint8_t                 headerData[HEADER_BUFFER_DATA_MAX_SIZE] = {0};
+#define HEADER_BUFFER_DATA_MAX_SIZE     250                         // TODO: is this needed?
+    const uint8_t*          headerData;
     uint16_t                headerOffset;
     uint8_t                 ruleId;
     bool                    flag;
@@ -101,8 +101,6 @@ private:
     size_t childrenCount;
     uint32_t ruleId;
 
-    __device__ bool operator==(const InspectorNode& lhs);
-
     __device__ InspectorNode() = default;
 
     __device__ InspectorNode(Inspector_t inspectorFun) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(Rule_NotRegistered) {}
@@ -120,19 +118,19 @@ private:
 
 class RuleTrie {
 private:
-#define RULE_TRIE_MAX_INSPECTOR_NODE_COUNT          50
+// #define RULE_TRIE_MAX_INSPECTOR_NODE_COUNT          50
 #define RULE_TRIE_MAX_INDIVIDUAL_RULE_COUNT         20
 
     InspectorNode root;
-    InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
+    // InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
     size_t nodeCounter;
 
     __device__ void printTrieHelper(const InspectorNode& parent, int depth);
 
 public:
-    __host__ __device__ RuleTrie() {}
+    __host__ __device__ RuleTrie();
 
-    __device__  void initTrie();
+     __host__ __device__ void initTrie();
 
     __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId);
 

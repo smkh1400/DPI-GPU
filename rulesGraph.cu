@@ -55,7 +55,7 @@ __device__ uint8_t *HeaderBuffer::getHeaderData() {
 }
 
 __device__ void HeaderBuffer::setHeaderData(const uint8_t *data) {
-    memcpy(headerData, data, ((packetLen > HEADER_BUFFER_DATA_MAX_SIZE) * HEADER_BUFFER_DATA_MAX_SIZE) + (packetLen <= HEADER_BUFFER_DATA_MAX_SIZE) * packetLen);
+    headerData = data;
 }
 
 __device__ size_t HeaderBuffer::getValidLen() {
@@ -94,23 +94,21 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, Ins
     }
 }
 
-__device__ bool InspectorNode::operator==(const InspectorNode& a) {
-    return (a.inspectorFunction == this->inspectorFunction);
-}
-
-
 __device__ InspectorNode* InspectorNode::hasThisChild(InspectorNode* child) {
     for(int i = 0 ; i < childrenCount ; i++) 
-        if(childrenNodes[i] == child)
+        if(childrenNodes[i]->inspectorFunction == child->inspectorFunction)
             return childrenNodes[i];
     return NULL;
 }
 
 __device__ bool InspectorNode::insertChild(InspectorNode* n) {
-    if(childrenCount >= INSPECTOR_NODE_CHILDREN_MAX_COUNT) 
+    if(childrenCount >= INSPECTOR_NODE_CHILDREN_MAX_COUNT) {
+        printf(">> Children Count Exceeded The Limit %p\n", inspectorFunction);
         return false;
+    }
     childrenNodes[childrenCount] = n;
     childrenCount++;
+
     return true;
 }
 
@@ -120,24 +118,27 @@ __device__ static void root_inspector(HeaderBuffer* p, void* cond, InspectorFunc
     out->calculatedOffset = 0;
 }
 
-__device__ void RuleTrie::initTrie() {
-    root.childrenCount = 0; 
+ __host__ __device__ RuleTrie::RuleTrie() {
+    this->initTrie();
+ }
+
+  __host__ __device__ void RuleTrie::initTrie() {
+    root.childrenCount = 0;
     root.inspectorFunction = (Inspector_t) root_inspector;
     root.ruleId = Rule_NotRegistered;
     nodeCounter = 0;
-}
+ }
 
 __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId) {
     InspectorNode* currentNode = &root;
     size_t ruleCounter = 0;
     bool res = true; 
 
-    InspectorNode n;
-    n.inspectorFunction = rule[ruleCounter];
+    InspectorNode n(rule[ruleCounter]);
     InspectorNode* currentNodeTemp;
 
     while(ruleCounter < nodesCount) {
-        if((currentNodeTemp = currentNode->hasThisChild(&n))) {
+        if((currentNodeTemp = currentNode->hasThisChild(&n)) != NULL) {
             ruleCounter++;
             n.inspectorFunction = rule[ruleCounter];
             currentNode = currentNodeTemp;
@@ -145,17 +146,13 @@ __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, Rule
             continue;
         } 
 
-        InspectorNode* newNode = &nodes[nodeCounter];
-        newNode->childrenCount = 0;
-        newNode->ruleId = Rule_NotRegistered;
-        newNode->inspectorFunction = rule[ruleCounter];
+        InspectorNode* newNode = new InspectorNode(rule[ruleCounter]);
         res &= currentNode->insertChild(newNode);
         if(!res) break;
         
         currentNode = newNode;
         ruleCounter++;
         nodeCounter++;
-
     }
 
     if(res) currentNode->ruleId = ruleId;
@@ -165,8 +162,10 @@ __device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, Rule
 
 __device__ bool RuleTrie::insertRules(Rule_t rules[], size_t ruleCount) {
     bool res = true;
-    for(int i = 0 ; i < ruleCount ; i++)
+    for(int i = 0 ; i < ruleCount ; i++) {
         res &= insertRule(rules[i].inspectors, rules[i].inspectorsCount, rules[i].ruleId);
+        // printf(">> Rule %s Is Added , RuleCount: %d\n", rules[i].ruleName, rules[i].inspectorsCount);
+    }
     return res;
 }
 

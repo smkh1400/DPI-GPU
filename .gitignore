@@ -4,3 +4,4 @@ sections/
 */test.cpp
 main
 *.ncu-rep
+nsight_systems_results
