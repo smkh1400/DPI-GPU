@@ -1,0 +1,5 @@
+chunkCountLimit: 100663296
+chunkTimeLimit: -1
+isTimerSet: false
+readPacketMode: offline
+threadPerBlock: 512

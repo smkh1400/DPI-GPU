@@ -1,7 +1,7 @@
 # Compiler and flags
 NVCC = nvcc
 CXX = g++
-NVCC_FLAGS = --disable-warnings --generate-line-info
+NVCC_FLAGS = --disable-warnings --generate-line-info 
 CXX_FLAGS = -lpcap -lyaml-cpp
 INCLUDES = -Iinclude
 

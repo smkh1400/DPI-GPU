@@ -47,6 +47,7 @@ __device__ HeaderBuffer::HeaderBuffer(const uint8_t *packetData, size_t packetLe
     this->packetLen = packetLen;
     this->flag = true;
     this->alive = true;
+    this->valid = true;
     this->setHeaderData(packetData);
 }
 
@@ -62,10 +63,11 @@ __device__ size_t HeaderBuffer::getValidLen() {
     return packetLen - headerOffset;
 }
 
-__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, InspectorFuncOutput* out) {   
+__device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, InspectorFuncOutput* out) { 
     inspectorFunction(header, cond, out);
 
-    bool warpExit = __all(header->ruleId != Rule_NotRegistered);
+
+    bool warpExit = __all_sync(__activemask() ,header->ruleId != Rule_NotRegistered || !header->valid);
     if(warpExit) {
         header->alive = false;
         return;
@@ -74,10 +76,14 @@ __device__ void InspectorNode::processNode(HeaderBuffer* header, void* cond, Ins
     header->flag &= out->checkConditionResult;
     bool c0 = (header->ruleId == Rule_NotRegistered);
     bool c1 = (header->flag == true);
-    header->ruleId = (!c0) * (header->ruleId) + (c0) * (c1) * (ruleId) + (c0) * (!c1) * (Rule_NotRegistered);
+    bool c2 = (header->valid == true);
+    header->ruleId = (RuleID) ((!c0) * (header->ruleId) + (c0) * (c1) * (c2) * (ruleId) + (c0) * (!c1) * (!c2) * (Rule_NotRegistered));     // valid for Rule_NotRegistered == 0
 
     size_t newOffset = header->headerOffset + out->calculatedOffset;
-    header->headerOffset = (header->packetLen >= newOffset && newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
+    // header->headerOffset = (header->packetLen >= newOffset && newOffset <= HEADER_BUFFER_DATA_MAX_SIZE) * newOffset;
+    header->valid *= (header->packetLen >= newOffset);
+    header->headerOffset = (header->valid) * newOffset;
+
 
     bool pFlag = header->flag;
     int32_t pOffset = header->headerOffset;
@@ -122,14 +128,14 @@ __device__ static void root_inspector(HeaderBuffer* p, void* cond, InspectorFunc
     this->initTrie();
  }
 
-  __host__ __device__ void RuleTrie::initTrie() {
-    root.childrenCount = 0;
+  __device__ void RuleTrie::initTrie() {
+    // root.childrenCount = 0;
     root.inspectorFunction = (Inspector_t) root_inspector;
-    root.ruleId = Rule_NotRegistered;
-    nodeCounter = 0;
+    // root.ruleId = Rule_NotRegistered;
+    // nodeCounter = 0;
  }
 
-__device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId) {
+__device__ bool RuleTrie::insertRule(Inspector_t rule[], size_t nodesCount, RuleID ruleId) {
     InspectorNode* currentNode = &root;
     size_t ruleCounter = 0;
     bool res = true; 

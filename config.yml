@@ -4,7 +4,7 @@ isTimerSet: false
 # - online :
 # - offline : read from pcap file
 readPacketMode: offline  
-chunkCountLimit: -1
+chunkCountLimit: 1572864
 chunkTimeLimit: -1
 
 threadPerBlock: 32

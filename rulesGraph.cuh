@@ -6,8 +6,9 @@
 #include <sys/types.h>
 #include <iostream>
 
-enum RuleName {
+enum RuleID {
     Rule_NotRegistered,
+    Rule_BadPacket,
 
     Rule_EthrArp,
     Rule_VlanEthrArp,
@@ -36,20 +37,22 @@ enum RuleName {
     Rule_Count
 };
 
+typedef uint8_t PacketMempool;
 
-const char* getRuleName(uint32_t ruleId);
+__device__ __host__ const char* getRuleName(uint32_t ruleId);
 
 class HeaderBuffer {
 public:
 #define HEADER_BUFFER_DATA_MAX_SIZE     250                         // TODO: is this needed?
     const uint8_t*          headerData;
     uint16_t                headerOffset;
-    uint8_t                 ruleId;
+    RuleID                  ruleId;
     bool                    flag;
     bool                    alive;
+    bool                    valid;
     uint16_t                packetLen;
 
-    __device__ HeaderBuffer() : headerOffset(0) , flag(true) , ruleId(Rule_NotRegistered) {}
+    __device__ HeaderBuffer() : headerOffset(0) , flag(true) , ruleId(Rule_NotRegistered) , alive(true) , valid(true) {}
 
     __device__ HeaderBuffer(const uint8_t* packetData, size_t packetLen);
 
@@ -68,7 +71,7 @@ struct PacketMetadata {
 };
 
 struct PacketInfo {
-    uint32_t ruleId;
+    RuleID ruleId;
 };
 
 struct InspectorFuncOutput {
@@ -85,10 +88,10 @@ public:
 
     Inspector_t     inspectors[RULE_MAX_INSPECTOR_COUNT];
     size_t          inspectorsCount;
-    RuleName          ruleId;
+    RuleID          ruleId;
     const uint8_t*  ruleName;
 
-#define REGISTER_RULE(ruleID, ...)          (Rule_t) {__VA_ARGS__, sizeof(((Inspector_t[]) __VA_ARGS__))/sizeof(Inspector_t), ruleID, #ruleID}
+#define REGISTER_RULE(ruleID, ...)          (Rule_t) {__VA_ARGS__, sizeof(((Inspector_t[]) __VA_ARGS__))/sizeof(Inspector_t), ruleID, #ruleID} 
 
 };
 
@@ -98,14 +101,14 @@ private:
 
     Inspector_t inspectorFunction;
     InspectorNode* childrenNodes[INSPECTOR_NODE_CHILDREN_MAX_COUNT];
-    size_t childrenCount;
-    uint32_t ruleId;
+    size_t childrenCount = 0;
+    RuleID ruleId = Rule_NotRegistered;
 
-    __device__ InspectorNode() = default;
+    __device__ InspectorNode() : inspectorFunction(NULL) , childrenCount(0), ruleId(Rule_NotRegistered) {};
 
     __device__ InspectorNode(Inspector_t inspectorFun) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(Rule_NotRegistered) {}
 
-    __device__ InspectorNode(Inspector_t inspectorFun, uint32_t ruleId) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(ruleId) {}
+    __device__ InspectorNode(Inspector_t inspectorFun, RuleID ruleId) : inspectorFunction(inspectorFun) , childrenCount(0) , ruleId(ruleId) {}
 
     __device__ void processNode(HeaderBuffer* packet, void* cond, InspectorFuncOutput* out);
 
@@ -123,16 +126,16 @@ private:
 
     InspectorNode root;
     // InspectorNode nodes[RULE_TRIE_MAX_INSPECTOR_NODE_COUNT];
-    size_t nodeCounter;
+    size_t nodeCounter = 0;
 
     __device__ void printTrieHelper(const InspectorNode& parent, int depth);
 
 public:
     __host__ __device__ RuleTrie();
 
-     __host__ __device__ void initTrie();
+    __host__ __device__ void initTrie();
 
-    __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleName ruleId);
+    __device__ bool insertRule(Inspector_t rule[], size_t nodesCount, RuleID ruleId);
 
     __device__ bool insertRules(Rule_t rules[], size_t ruleCount);
 

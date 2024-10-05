@@ -14,7 +14,7 @@
 #define ntohs(x) x
 #endif
 
-#define LOAD_UINT8(p) (*((uint8_t *)(p)))
+#define LOAD_UINT8(p) (*((uint8_t *)((uintptr_t) p)))
 #define LOAD_UINT16(p) (uint16_t)(LOAD_UINT8(p) | (LOAD_UINT8(p + 1) << 8))
 #define LOAD_UINT32(p) (uint32_t)((LOAD_UINT16(p)) | ((LOAD_UINT16(p + 2)) << 16))
 
@@ -32,7 +32,8 @@ __device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t 
 __device__ static bool isFieldInHeader(HeaderBuffer *h, const uint8_t *field, size_t fieldLen)                          // TODO : using trie
 {
     // bool result = false;
-    size_t len = (h->packetLen < HEADER_BUFFER_DATA_MAX_SIZE) * (h->packetLen) + (h->packetLen >= HEADER_BUFFER_DATA_MAX_SIZE) * (HEADER_BUFFER_DATA_MAX_SIZE);
+    size_t len = (h->packetLen < HEADER_BUFFER_DATA_MAX_SIZE) * (h->packetLen) + (h->packetLen >= HEADER_BUFFER_DATA_MAX_SIZE) * (HEADER_BUFFER_DATA_MAX_SIZE);      // TODO
+    // size_t len = h->packetLen;
     for (size_t i = h->headerOffset; i < len - fieldLen; i++)
         // result |= d_strcmp(h->headerData + i, field, fieldLen);
         if (d_strcmp(h->headerData + i, field, fieldLen)) return true;
@@ -209,7 +210,7 @@ __device__ static void tcpHttp_inspector(HeaderBuffer *p, void *cond, InspectorF
     uint16_t dport = LOAD_UINT16(cond+2);
 
     const uint8_t *fields[] = {"POST"};                                                 // TODO : Adding other fields
-    out->checkConditionResult = (isFieldInHeader(p, fields[0], 4) && (sport == htons(0x0050) || dport == htons(0x0050)));
+    out->checkConditionResult = ((sport == htons(0x0050) || dport == htons(0x0050)) && isFieldInHeader(p, fields[0], 4));
 
     out->extractedCondition = NULL;
 
