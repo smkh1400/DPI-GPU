@@ -8,7 +8,6 @@ The main goal of this project is to build a high-throughput DPI engine that can 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
 ## Getting Started
 
 This is an example of how you may give instructions on setting up your project locally.
@@ -37,14 +36,12 @@ To get a local copy up and running follow these simple example steps.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 ## Usage
 
-1. Configure the settings in *config.yml*
+1. Configure the settings in _config.yml_
    ```yml
    isTimerSet: false
-   readPacketMode: offline  
+   readPacketMode: offline
    chunkCountLimit: 1572864
    chunkTimeLimit: -1
    threadPerBlock: 32
@@ -60,23 +57,21 @@ To get a local copy up and running follow these simple example steps.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- LICENSE -->
+
 ## License
 
 Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- CONTACT -->
+
 ## Contact
 
 Seyed Mohammadreza Khosravian: mz2012kh82@gmail.com
 
-MohammadMehdi Sattari
+MohammadMehdi Sattari: mamadsadtari83@gmail.com
 
 Project Link: [https://github.com/smkh1400/DPI-GPU](https://github.com/smkh1400/DPI-GPU)
 
