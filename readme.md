@@ -76,6 +76,8 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 Seyed Mohammadreza Khosravian: mz2012kh82@gmail.com
 
+MohammadMehdi Sattari
+
 Project Link: [https://github.com/smkh1400/DPI-GPU](https://github.com/smkh1400/DPI-GPU)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
