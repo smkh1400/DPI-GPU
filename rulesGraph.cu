@@ -37,6 +37,9 @@ __device__ __host__ const char* getRuleName(uint32_t ruleId) {
         
         case Rule_EthrIpv4TcpHttp:                                  return "Ethernet-IPv4-TCP-HTTP";
         case Rule_VlanEthrIpv4TcpHttp:                              return "Ethernet-Vlan-IPv4-TCP-HTTP";
+
+        case Rule_EthrIpv4Sctp:                                     return "Ethernet-IPv4-SCTP";
+        case Rule_VlanEthrIpv4Sctp:                                 return "Ethernet-Vlan-IPv4-SCTP";
         default:                                                    return "N/A";
     }
 };

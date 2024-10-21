@@ -111,6 +111,13 @@ typedef struct __attribute__((packed)){
     uint16_t    checkSum;       
 } UDPHeader;
 
+typedef struct __attribute__((packet)){
+    uint16_t    sport;
+    uint16_t    dport;
+    uint32_t    verfTag;
+    uint32_t    checksum;
+} SCTPHeader;
+
 typedef struct __attribute__((packed)) {
     uint8_t content_type;      // Content Type (1 byte)
     uint16_t version;          // Version (2 bytes)

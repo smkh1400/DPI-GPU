@@ -33,6 +33,9 @@ enum RuleID {
 
     Rule_EthrIpv4UdpGtpIpv4UdpSip,
     Rule_VlanEthrIpv4UdpGtpIpv4UdpSip, 
+
+    Rule_EthrIpv4Sctp,
+    Rule_VlanEthrIpv4Sctp,
     
     Rule_Count
 };

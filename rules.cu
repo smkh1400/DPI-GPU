@@ -18,7 +18,7 @@
 #define LOAD_UINT16(p) (uint16_t)(LOAD_UINT8(p) | (LOAD_UINT8(p + 1) << 8))
 #define LOAD_UINT32(p) (uint32_t)((LOAD_UINT16(p)) | ((LOAD_UINT16(p + 2)) << 16))
 
-__device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t *b, size_t n)                           // TODO
+__device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t *b, size_t n)                           // TODO:
 {
     size_t counter = 0;
     for (size_t i = 0; i < n; i++)
@@ -29,7 +29,7 @@ __device__ __forceinline__ static bool d_strcmp(const uint8_t *a, const uint8_t 
     // return true;
 }
 
-__device__ static bool isFieldInHeader(HeaderBuffer *h, const uint8_t *field, size_t fieldLen)                          // TODO : using trie
+__device__ static bool isFieldInHeader(HeaderBuffer *h, const uint8_t *field, size_t fieldLen)                          // TODO: using trie
 {
     // bool result = false;
     size_t len = (h->packetLen < HEADER_BUFFER_DATA_MAX_SIZE) * (h->packetLen) + (h->packetLen >= HEADER_BUFFER_DATA_MAX_SIZE) * (HEADER_BUFFER_DATA_MAX_SIZE);      // TODO
@@ -114,6 +114,18 @@ __device__ static void ipv4Udp_inspector(HeaderBuffer *p, void *cond, InspectorF
     out->extractedCondition = &(hdr->sport);
 
     out->calculatedOffset = sizeof(UDPHeader);
+}
+
+__device__ static void ipv4Sctp_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput* out)
+{
+    uint8_t protocol = LOAD_UINT8(cond);
+    out->checkConditionResult = (protocol == 0x84);
+
+    SCTPHeader *hdr = (SCTPHeader *)(p->getHeaderData());
+
+    out->extractedCondition = NULL;
+
+    out->calculatedOffset = 0;
 }
 
 __device__ static void udpDns_inspector(HeaderBuffer *p, void *cond, InspectorFuncOutput *out)
@@ -221,6 +233,9 @@ __global__ void registerRules(RuleTrie *trie)
 {
 
     Rule_t rules[] = {
+
+        REGISTER_RULE(Rule_EthrIpv4Sctp, {ethr_inspector, ethrIpv4_inspector, ipv4Sctp_inspector}),
+        REGISTER_RULE(Rule_VlanEthrIpv4Sctp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Sctp_inspector}),
         
         REGISTER_RULE(Rule_EthrArp, {ethr_inspector, ethrArp_inspector}),
         REGISTER_RULE(Rule_VlanEthrArp, {vlanEthr_inspector, ethrArp_inspector}),
@@ -245,6 +260,7 @@ __global__ void registerRules(RuleTrie *trie)
 
         REGISTER_RULE(Rule_EthrIpv4TcpHttp, {ethr_inspector, ethrIpv4_inspector, ipv4Tcp_inspector, tcpHttp_inspector}),
         REGISTER_RULE(Rule_VlanEthrIpv4TcpHttp, {vlanEthr_inspector, ethrIpv4_inspector, ipv4Tcp_inspector, tcpHttp_inspector}),
+
     };
 
     trie->initTrie();
