@@ -25,35 +25,38 @@ To get a local copy up and running follow these simple example steps.
 
 ### Installation
 
-1. Get a free API Key at [https://example.com](https://example.com)
 2. Clone the repository
    ```sh
-   git clone 
+   git clone https://github.com/smkh1400/DPI-GPU.git
+   cd DPI-GPU
    ```
-3. Install NPM packages
+3. Built the project using **make**
    ```sh
-   npm install
-   ```
-4. Enter your API in `config.js`
-   ```js
-   const API_KEY = 'ENTER YOUR API';
-   ```
-5. Change git remote url to avoid accidental pushes to base project
-   ```sh
-   git remote set-url origin github_username/repo_name
-   git remote -v # confirm the changes
+   make -B
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
 
-<!-- USAGE EXAMPLES -->
 ## Usage
 
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
-
-_For more examples, please refer to the [Documentation](https://example.com)_
+1. Configure the settings in *config.yml*
+   ```yml
+   isTimerSet: false
+   readPacketMode: offline  
+   chunkCountLimit: 1572864
+   chunkTimeLimit: -1
+   threadPerBlock: 32
+   ```
+2. Run the application for a specific pcap file using flag -f
+   ```sh
+   ./main -f <path_to_pcap_file>
+   ```
+   Or for a directory containing pcap files
+   ```sh
+   ./main -d <path_to_directory_of_pcap_files>
+   ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -71,8 +74,8 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 <!-- CONTACT -->
 ## Contact
 
-Your Name - [@your_twitter](https://twitter.com/your_username) - email@example.com
+Seyed Mohammadreza Khosravian: mz2012kh82@gmail.com
 
-Project Link: [https://github.com/your_username/repo_name](https://github.com/your_username/repo_name)
+Project Link: [https://github.com/smkh1400/DPI-GPU](https://github.com/smkh1400/DPI-GPU)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
